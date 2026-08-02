@@ -1,0 +1,27 @@
+-- |--------------------------------------------------------------------------
+-- Migration: 0014_profiles_service_role_grants.sql
+-- Açıklama:
+--   public.profiles tablosuna service_role için CRUD yetkileri verir.
+--
+--   Sorun:
+--     Server-side API (createServiceClient, SUPABASE_SERVICE_ROLE_KEY) üzerinden
+--     public.profiles tablosuna yapılan sorgular "permission denied for table
+--     profiles" (PostgreSQL hata kodu 42501) hatası veriyor. Bu RLS kaynaklı
+--     değildir; service_role'ün tablo seviyesinde SELECT/INSERT/UPDATE/DELETE
+--     yetkisi eksik.
+--
+--   Çözüm:
+--     service_role rolüne public.profiles üzerinde SELECT, INSERT, UPDATE,
+--     DELETE yetkileri verilir. service_role RLS'den muaftir; bu yetki tablo
+--     seviyesindedir ve policy'lere alternatif değildir.
+--
+-- Güvenlik notları:
+--   - GRANT idempotenttir; tekrar çalıştırma mevcut izinleri bozmaz.
+--   - RLS politikaları veya trigger'lar değiştirilmez.
+--   - authenticated, anon veya başka rollerin izinleri değiştirilmez.
+--   - service_role yalnızca sunucu tarafında güvenli anahtarla kullanılır;
+--     istemciye sızmaz.
+-- ---------------------------------------------------------------------------
+
+-- Service role için tablo seviyesinde CRUD yetkileri.
+grant select, insert, update, delete on public.profiles to service_role;

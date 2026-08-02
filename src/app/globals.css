@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+/*
+  Premium tasarım sistemi — Özel Ders Randevu
+  Renk paleti: koyu siyah/antrasit zemin, altın vurgu, kırık beyaz metin.
+  Tüm renkler OKLCH ile tanımlı; erişilebilir kontrast gözetilmiştir.
+*/
+
+@theme {
+  /* Zemin tonları */
+  --color-ink: oklch(16% 0.01 264);          /* koyu siyah-antrasit ana arka plan */
+  --color-ink-deep: oklch(12% 0.012 264);     /* daha derin siyah (gradient / footer) */
+  --color-surface: oklch(23% 0.008 264);      /* kart yüzeyi (daha açık koyu gri) */
+  --color-surface-raised: oklch(27% 0.01 264); /* yükseltilmiş kart / hover */
+
+  /* Kenarlıklar (hafif ve zarif) */
+  --color-line: oklch(100% 0 0 / 8%);         /* varsayılan ince kenarlık */
+  --color-line-strong: oklch(100% 0 0 / 14%);
+
+  /* Birincil vurgu: altın tonu */
+  --color-gold: oklch(82% 0.13 85);          /* ana altın */
+  --color-gold-soft: oklch(82% 0.13 85 / 16%); /* altın zemin (rozet, hint) */
+  --color-gold-hover: oklch(78% 0.135 85);   /* hover halinde daha sıcak altın */
+  --color-gold-active: oklch(74% 0.14 85);  /* active halinde koyu altın */
+
+  /* Metin */
+  --color-ink-text: oklch(96% 0.005 264);    /* kırık beyaz ana metin */
+  --color-muted: oklch(72% 0.01 264);        /* açık gri ikincil metin */
+  --color-subtle: oklch(58% 0.01 264);      /* daha sessiz eşlik metni */
+
+  /* Yazı tipleri (Next.js font değişkenleriyle eşlenir) */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-ink);
+  color: var(--color-ink-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Premium ışık efekti için yardımcı (ana sayfa hero arka planı) */
+.premium-radial {
+  background-image:
+    radial-gradient(
+      60% 50% at 50% 0%,
+      oklch(82% 0.13 85 / 12%) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      40% 35% at 72% 18%,
+      oklch(82% 0.13 85 / 7%) 0%,
+      transparent 60%
+    );
+}
+
+/* Zarif odak halkası (tuşlar, girişler) */
+.focus-ring {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow:
+    0 0 0 2px var(--color-ink),
+    0 0 0 4px oklch(82% 0.13 85 / 70%);
+}
+
+/* İnce premium kenarlık kartlar için */
+.card-border {
+  border: 1px solid var(--color-line);
+}
