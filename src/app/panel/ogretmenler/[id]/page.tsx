@@ -230,7 +230,7 @@ export default function TeacherProfilePage() {
       .filter((row) => {
         if (row.available_date > todayStr) return true;
         if (row.available_date < todayStr) return false;
-        return timeToMinutes(row.start_time) >= nowMinutes;
+        return (timeToMinutes(row.start_time) ?? 0) >= nowMinutes;
       })
       .sort((a, b) => {
         const dateCmp = a.available_date.localeCompare(b.available_date);
@@ -1003,6 +1003,7 @@ function generateStartTimes(
   const slotStart = timeToMinutes(slot.start_time);
   const slotEnd = timeToMinutes(slot.end_time);
 
+  if (slotStart === null || slotEnd === null) return [];
   if (blocked > slotEnd - slotStart) return [];
 
   const candidates: string[] = [];

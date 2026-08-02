@@ -1281,7 +1281,7 @@ export default function OgretmenPanelPage() {
                 Haftalık Takvim
               </h2>
               <p className="text-xs leading-relaxed text-subtle">
-                {formatCalendarWeekRange(weekStart)}
+                {formatCalendarWeekRange(weekStart, addDays(weekStart, 6))}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
