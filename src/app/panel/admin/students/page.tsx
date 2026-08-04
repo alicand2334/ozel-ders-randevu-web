@@ -35,6 +35,28 @@ type CreateStudentResponse = {
 
 type CreateStudentApiError = { error?: string };
 
+type DeleteStudentApiResponse = {
+  message?: string;
+  error?: string;
+};
+
+type EditStudentForm = {
+  full_name: string;
+  phone: string;
+};
+
+type EditStudentResponse = {
+  id: string;
+  full_name: string | null;
+  phone: string | null;
+  is_active: boolean;
+};
+
+const EMPTY_EDIT_FORM: EditStudentForm = {
+  full_name: "",
+  phone: "",
+};
+
 const EMPTY_FORM: NewStudentForm = {
   full_name: "",
   email: "",
@@ -80,6 +102,32 @@ export default function AdminStudentsPage() {
   const [submitting, setSubmitting] = useState(false);
   const modalPanelRef = useRef<HTMLDivElement>(null);
 
+  const [pwdTarget, setPwdTarget] = useState<StudentRow | null>(null);
+  const [pwdValue, setPwdValue] = useState("");
+  const [pwdConfirm, setPwdConfirm] = useState("");
+  const [pwdError, setPwdError] = useState<string | null>(null);
+  const [pwdSuccess, setPwdSuccess] = useState<string | null>(null);
+  const [pwdSubmitting, setPwdSubmitting] = useState(false);
+  const pwdPanelRef = useRef<HTMLDivElement>(null);
+
+  const [editTarget, setEditTarget] = useState<StudentRow | null>(null);
+  const [editForm, setEditForm] = useState<EditStudentForm>(EMPTY_EDIT_FORM);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const editPanelRef = useRef<HTMLDivElement>(null);
+
+  const [toggleTarget, setToggleTarget] = useState<StudentRow | null>(null);
+  const [toggleSubmitting, setToggleSubmitting] = useState(false);
+  const [toggleError, setToggleError] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const togglePanelRef = useRef<HTMLDivElement>(null);
+
+  const [deleteTarget, setDeleteTarget] = useState<StudentRow | null>(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const deletePanelRef = useRef<HTMLDivElement>(null);
+
   const openModal = useCallback(() => {
     setForm(EMPTY_FORM);
     setFormError(null);
@@ -94,6 +142,64 @@ export default function AdminStudentsPage() {
     setFormError(null);
     setFormSuccess(null);
   }, [submitting]);
+
+  const openPwdModal = useCallback((s: StudentRow) => {
+    setPwdTarget(s);
+    setPwdValue("");
+    setPwdConfirm("");
+    setPwdError(null);
+    setPwdSuccess(null);
+    setPwdSubmitting(false);
+  }, []);
+
+  const closePwdModal = useCallback(() => {
+    if (pwdSubmitting) return;
+    setPwdTarget(null);
+    setPwdError(null);
+    setPwdSuccess(null);
+  }, [pwdSubmitting]);
+
+  const openEditModal = useCallback((s: StudentRow) => {
+    setEditTarget(s);
+    setEditForm({
+      full_name: s.full_name?.trim() ?? "",
+      phone: s.phone?.trim() ?? "",
+    });
+    setEditError(null);
+    setEditSubmitting(false);
+  }, []);
+
+  const closeEditModal = useCallback(() => {
+    if (editSubmitting) return;
+    setEditTarget(null);
+    setEditError(null);
+  }, [editSubmitting]);
+
+  const openToggleActiveModal = useCallback((s: StudentRow) => {
+    setToggleTarget(s);
+    setToggleError(null);
+    setToggleSubmitting(false);
+  }, []);
+
+  const closeToggleActiveModal = useCallback(() => {
+    if (toggleSubmitting) return;
+    setToggleTarget(null);
+    setToggleError(null);
+  }, [toggleSubmitting]);
+
+  const openDeleteModal = useCallback((s: StudentRow) => {
+    setDeleteTarget(s);
+    setDeleteConfirmName("");
+    setDeleteError(null);
+    setDeleteSubmitting(false);
+  }, []);
+
+  const closeDeleteModal = useCallback(() => {
+    if (deleteSubmitting) return;
+    setDeleteTarget(null);
+    setDeleteConfirmName("");
+    setDeleteError(null);
+  }, [deleteSubmitting]);
 
   useEffect(() => {
     if (!modalOpen) return;
@@ -116,6 +222,111 @@ export default function AdminStudentsPage() {
       previouslyFocused?.focus?.();
     };
   }, [modalOpen]);
+
+  useEffect(() => {
+    if (!pwdTarget) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && !pwdSubmitting) {
+        setPwdTarget(null);
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [pwdTarget, pwdSubmitting]);
+
+  useEffect(() => {
+    if (!pwdTarget) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    pwdPanelRef.current?.focus();
+    return () => {
+      previouslyFocused?.focus?.();
+    };
+  }, [pwdTarget]);
+
+  useEffect(() => {
+    if (!editTarget) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && !editSubmitting) {
+        setEditTarget(null);
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [editTarget, editSubmitting]);
+
+  useEffect(() => {
+    if (!editTarget) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    editPanelRef.current?.focus();
+    return () => {
+      previouslyFocused?.focus?.();
+    };
+  }, [editTarget]);
+
+  useEffect(() => {
+    if (!toggleTarget) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && !toggleSubmitting) {
+        setToggleTarget(null);
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [toggleTarget, toggleSubmitting]);
+
+  useEffect(() => {
+    if (!toggleTarget) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    togglePanelRef.current?.focus();
+    return () => {
+      previouslyFocused?.focus?.();
+    };
+  }, [toggleTarget]);
+
+  useEffect(() => {
+    if (!deleteTarget) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && !deleteSubmitting) {
+        setDeleteTarget(null);
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [deleteTarget, deleteSubmitting]);
+
+  useEffect(() => {
+    if (!deleteTarget) return;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    deletePanelRef.current?.focus();
+    return () => {
+      previouslyFocused?.focus?.();
+    };
+  }, [deleteTarget]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => {
+      setToast(null);
+    }, 2500);
+    return () => {
+      window.clearTimeout(id);
+    };
+  }, [toast]);
+
+  function handleEditFieldChange(
+    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) {
+    const { name, value } = e.target;
+    setEditForm((prev) => ({ ...prev, [name]: value }));
+  }
 
   function handleFieldChange(
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -307,6 +518,273 @@ export default function AdminStudentsPage() {
     }
   }
 
+  async function handlePwdSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (pwdSubmitting || !pwdTarget) return;
+
+    setPwdError(null);
+    setPwdSuccess(null);
+
+    if (pwdValue.length < 8) {
+      setPwdError("Yeni geçici şifre en az 8 karakter olmalı.");
+      return;
+    }
+    if (pwdValue !== pwdConfirm) {
+      setPwdError("Girilen şifreler eşleşmiyor.");
+      return;
+    }
+
+    setPwdSubmitting(true);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token ?? null;
+
+      if (!accessToken) {
+        setPwdError("Oturum bulunamadı. Lütfen tekrar giriş yapın.");
+        setPwdSubmitting(false);
+        return;
+      }
+
+      const res = await fetch(
+        `/api/admin/students/${encodeURIComponent(pwdTarget.id)}/password`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ temporary_password: pwdValue }),
+        },
+      );
+
+      const payload: { message?: string; error?: string } = await res.json();
+
+      if (!res.ok) {
+        setPwdError(
+          payload.error ?? "Şifre güncellenirken bir hata oluştu.",
+        );
+        setPwdSubmitting(false);
+        return;
+      }
+
+      setPwdSuccess("Öğrenci şifresi başarıyla güncellendi.");
+      setPwdValue("");
+      setPwdConfirm("");
+      setPwdSubmitting(false);
+
+      setTimeout(() => {
+        setPwdTarget(null);
+        setPwdSuccess(null);
+      }, 1200);
+    } catch {
+      setPwdError("Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.");
+      setPwdSubmitting(false);
+    }
+  }
+
+  async function handleEditSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (editSubmitting || !editTarget) return;
+
+    setEditError(null);
+
+    const fullName = editForm.full_name.trim();
+
+    if (!fullName) {
+      setEditError("Ad soyad boş olamaz.");
+      return;
+    }
+
+    setEditSubmitting(true);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token ?? null;
+
+      if (!accessToken) {
+        setEditError("Oturum bulunamadı. Lütfen tekrar giriş yapın.");
+        setEditSubmitting(false);
+        return;
+      }
+
+      const res = await fetch(
+        `/api/admin/students/${encodeURIComponent(editTarget.id)}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            full_name: fullName,
+            phone: editForm.phone.trim() || null,
+          }),
+        },
+      );
+
+      const payload: EditStudentResponse | CreateStudentApiError =
+        await res.json();
+
+      if (!res.ok || !("id" in payload)) {
+        const apiError = payload as CreateStudentApiError;
+        setEditError(
+          apiError.error ?? "Öğrenci güncellenirken bir hata oluştu.",
+        );
+        setEditSubmitting(false);
+        return;
+      }
+
+      const updated = payload as EditStudentResponse;
+
+      setStudents((prev) =>
+        prev.map((row) =>
+          row.id === updated.id
+            ? {
+                ...row,
+                full_name: updated.full_name,
+                phone: updated.phone,
+              }
+            : row,
+        ),
+      );
+
+      setEditSubmitting(false);
+      setEditTarget(null);
+    } catch {
+      setEditError("Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.");
+      setEditSubmitting(false);
+    }
+  }
+
+  async function handleToggleActiveSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (toggleSubmitting || !toggleTarget) return;
+
+    setToggleError(null);
+    const nextActive = toggleTarget.is_active !== false ? false : true;
+
+    setToggleSubmitting(true);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token ?? null;
+
+      if (!accessToken) {
+        setToggleError("Oturum bulunamadı. Lütfen tekrar giriş yapın.");
+        setToggleSubmitting(false);
+        return;
+      }
+
+      const res = await fetch(
+        `/api/admin/students/${encodeURIComponent(toggleTarget.id)}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ is_active: nextActive }),
+        },
+      );
+
+      const payload: EditStudentResponse | CreateStudentApiError =
+        await res.json();
+
+      if (!res.ok || !("id" in payload)) {
+        const apiError = payload as CreateStudentApiError;
+        setToggleError(
+          apiError.error ?? "Durum güncellenirken bir hata oluştu.",
+        );
+        setToggleSubmitting(false);
+        return;
+      }
+
+      const updated = payload as EditStudentResponse;
+
+      setStudents((prev) =>
+        prev.map((row) =>
+          row.id === updated.id
+            ? { ...row, is_active: updated.is_active }
+            : row,
+        ),
+      );
+
+      setToast(
+        updated.is_active
+          ? "Öğrenci tekrar aktif edildi."
+          : "Öğrenci pasife alındı.",
+      );
+      setToggleSubmitting(false);
+      setToggleTarget(null);
+    } catch {
+      setToggleError("Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.");
+      setToggleSubmitting(false);
+    }
+  }
+
+  async function handleDeleteSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (deleteSubmitting || !deleteTarget) return;
+
+    setDeleteError(null);
+
+    const expectedName = (deleteTarget.full_name ?? "").trim();
+    const inputName = deleteConfirmName.trim();
+
+    if (!inputName) {
+      setDeleteError("Onay için öğrencinin adını yazın.");
+      return;
+    }
+    if (inputName !== expectedName) {
+      setDeleteError("Yazdığınız ad öğrencinin adıyla eşleşmiyor.");
+      return;
+    }
+
+    setDeleteSubmitting(true);
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token ?? null;
+
+      if (!accessToken) {
+        setDeleteError("Oturum bulunamadı. Lütfen tekrar giriş yapın.");
+        setDeleteSubmitting(false);
+        return;
+      }
+
+      const res = await fetch(
+        `/api/admin/students/${encodeURIComponent(deleteTarget.id)}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+
+      const payload: DeleteStudentApiResponse = await res.json();
+
+      if (!res.ok) {
+        setDeleteError(
+          payload?.error ?? "Öğrenci silinirken bir hata oluştu.",
+        );
+        setDeleteSubmitting(false);
+        return;
+      }
+
+      setStudents((prev) => prev.filter((row) => row.id !== deleteTarget.id));
+      setToast(`Öğrenci silindi: ${expectedName}`);
+      setDeleteSubmitting(false);
+      setDeleteTarget(null);
+      setDeleteConfirmName("");
+      setDeleteError(null);
+    } catch {
+      setDeleteError("Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.");
+      setDeleteSubmitting(false);
+    }
+  }
+
   async function handleSignOut() {
     await supabase.auth.signOut();
     router.replace("/giris");
@@ -417,7 +895,14 @@ export default function AdminStudentsPage() {
                     </thead>
                     <tbody className="divide-y divide-line">
                       {pageRows.map((s) => (
-                        <StudentRowDesktop key={s.id} s={s} />
+                        <StudentRowDesktop
+                          key={s.id}
+                          s={s}
+                          onPwd={openPwdModal}
+                          onEdit={openEditModal}
+                          onToggleActive={openToggleActiveModal}
+                          onDelete={openDeleteModal}
+                        />
                       ))}
                     </tbody>
                   </table>
@@ -426,7 +911,14 @@ export default function AdminStudentsPage() {
                 {/* Mobil: kart listesi */}
                 <ul className="divide-y divide-line sm:hidden">
                   {pageRows.map((s) => (
-                    <StudentRowMobile key={s.id} s={s} />
+                    <StudentRowMobile
+                      key={s.id}
+                      s={s}
+                      onPwd={openPwdModal}
+                      onEdit={openEditModal}
+                      onToggleActive={openToggleActiveModal}
+                      onDelete={openDeleteModal}
+                    />
                   ))}
                 </ul>
 
@@ -602,6 +1094,420 @@ export default function AdminStudentsPage() {
           </div>
         </div>
       ) : null}
+
+      {pwdTarget ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 py-6 sm:items-center sm:py-10"
+          onClick={(e) => {
+            if (pwdSubmitting) return;
+            if (e.target === e.currentTarget) {
+              setPwdTarget(null);
+            }
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="pwd-modal-title"
+        >
+          <div
+            ref={pwdPanelRef}
+            tabIndex={-1}
+            className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-y-auto rounded-2xl border border-line bg-surface outline-none"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
+              <div className="flex flex-col gap-0.5">
+                <h2
+                  id="pwd-modal-title"
+                  className="text-base font-semibold tracking-tight text-ink-text"
+                >
+                  Şifre Sıfırla
+                </h2>
+                {pwdTarget.full_name?.trim() ? (
+                  <span className="text-xs text-subtle">
+                    {pwdTarget.full_name.trim()}
+                  </span>
+                ) : null}
+              </div>
+              <SecondaryButton
+                onClick={closePwdModal}
+                disabled={pwdSubmitting}
+                className="w-auto px-4 py-2 text-xs"
+                aria-label="Kapat"
+              >
+                Kapat
+              </SecondaryButton>
+            </div>
+
+            <form
+              onSubmit={handlePwdSubmit}
+              className="flex flex-col gap-4 px-5 py-5 sm:px-6"
+            >
+              {pwdError ? (
+                <p
+                  role="alert"
+                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
+                >
+                  {pwdError}
+                </p>
+              ) : null}
+              {pwdSuccess ? (
+                <p
+                  role="status"
+                  className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-300"
+                >
+                  {pwdSuccess}
+                </p>
+              ) : null}
+
+              <TextInput
+                id="pwd-new"
+                name="temporary_password"
+                type="password"
+                label="Yeni Geçici Şifre"
+                placeholder="En az 8 karakter"
+                value={pwdValue}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setPwdValue(e.target.value)
+                }
+                disabled={pwdSubmitting}
+                autoComplete="new-password"
+                hint="Öğrenci ilk girişten sonra değiştirebilir."
+                required
+              />
+
+              <TextInput
+                id="pwd-confirm"
+                name="temporary_password_confirm"
+                type="password"
+                label="Yeni Şifre (Tekrar)"
+                placeholder="Aynı şifreyi tekrar girin"
+                value={pwdConfirm}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setPwdConfirm(e.target.value)
+                }
+                disabled={pwdSubmitting}
+                autoComplete="new-password"
+                required
+              />
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <SecondaryButton
+                  type="button"
+                  onClick={closePwdModal}
+                  disabled={pwdSubmitting}
+                  className="w-full sm:w-auto"
+                >
+                  İptal
+                </SecondaryButton>
+                <PrimaryButton
+                  type="submit"
+                  disabled={pwdSubmitting}
+                  className="w-full sm:w-auto"
+                >
+                  {pwdSubmitting ? "Şifre güncelleniyor..." : "Şifreyi Sıfırla"}
+                </PrimaryButton>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {editTarget ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 py-6 sm:items-center sm:py-10"
+          onClick={(e) => {
+            if (editSubmitting) return;
+            if (e.target === e.currentTarget) {
+              setEditTarget(null);
+            }
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-student-modal-title"
+        >
+          <div
+            ref={editPanelRef}
+            tabIndex={-1}
+            className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-y-auto rounded-2xl border border-line bg-surface outline-none"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
+              <div className="flex flex-col gap-0.5">
+                <h2
+                  id="edit-student-modal-title"
+                  className="text-base font-semibold tracking-tight text-ink-text"
+                >
+                  Öğrenciyi Düzenle
+                </h2>
+                {editTarget.full_name?.trim() ? (
+                  <span className="text-xs text-subtle">
+                    {editTarget.full_name.trim()}
+                  </span>
+                ) : null}
+              </div>
+              <SecondaryButton
+                onClick={closeEditModal}
+                disabled={editSubmitting}
+                className="w-auto px-4 py-2 text-xs"
+                aria-label="Kapat"
+              >
+                Kapat
+              </SecondaryButton>
+            </div>
+
+            <form
+              onSubmit={handleEditSubmit}
+              className="flex flex-col gap-4 px-5 py-5 sm:px-6"
+            >
+              {editError ? (
+                <p
+                  role="alert"
+                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
+                >
+                  {editError}
+                </p>
+              ) : null}
+
+              <TextInput
+                id="edit-student-full-name"
+                name="full_name"
+                label="Ad Soyad"
+                placeholder="ör. Mehmet Demir"
+                value={editForm.full_name}
+                onChange={handleEditFieldChange}
+                disabled={editSubmitting}
+                autoComplete="name"
+                required
+              />
+
+              <TextInput
+                id="edit-student-phone"
+                name="phone"
+                type="tel"
+                label="Telefon (isteğe bağlı)"
+                placeholder="ör. +90 5xx xxx xx xx"
+                value={editForm.phone}
+                onChange={handleEditFieldChange}
+                disabled={editSubmitting}
+                autoComplete="tel"
+              />
+
+              <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <SecondaryButton
+                  type="button"
+                  onClick={closeEditModal}
+                  disabled={editSubmitting}
+                  className="w-full sm:w-auto"
+                >
+                  Vazgeç
+                </SecondaryButton>
+                <PrimaryButton
+                  type="submit"
+                  disabled={editSubmitting}
+                  className="w-full sm:w-auto"
+                >
+                  {editSubmitting ? "Kaydediliyor..." : "Kaydet"}
+                </PrimaryButton>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {toggleTarget ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 py-6 sm:items-center sm:py-10"
+          onClick={(e) => {
+            if (toggleSubmitting) return;
+            if (e.target === e.currentTarget) {
+              setToggleTarget(null);
+            }
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="toggle-student-modal-title"
+        >
+          <div
+            ref={togglePanelRef}
+            tabIndex={-1}
+            className="flex w-full max-w-md flex-col overflow-y-auto rounded-2xl border border-line bg-surface outline-none"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
+              <div className="flex flex-col gap-0.5">
+                <h2
+                  id="toggle-student-modal-title"
+                  className="text-base font-semibold tracking-tight text-ink-text"
+                >
+                  {toggleTarget.is_active !== false
+                    ? "Öğrenciyi Pasife Al"
+                    : "Öğrenciyi Aktif Et"}
+                </h2>
+                {toggleTarget.full_name?.trim() ? (
+                  <span className="text-xs text-subtle">
+                    {toggleTarget.full_name.trim()}
+                  </span>
+                ) : null}
+              </div>
+              <SecondaryButton
+                onClick={closeToggleActiveModal}
+                disabled={toggleSubmitting}
+                className="w-auto px-4 py-2 text-xs"
+                aria-label="Kapat"
+              >
+                Kapat
+              </SecondaryButton>
+            </div>
+
+            <form
+              onSubmit={handleToggleActiveSubmit}
+              className="flex flex-col gap-4 px-5 py-5 sm:px-6"
+            >
+              {toggleError ? (
+                <p
+                  role="alert"
+                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
+                >
+                  {toggleError}
+                </p>
+              ) : null}
+
+              <p className="text-sm leading-relaxed text-ink-text">
+                {toggleTarget.is_active !== false
+                  ? "Bu öğrenciyi pasife almak istediğinize emin misiniz? Öğrenci sisteme giriş yapamayacak ve yeni randevu oluşturamayacak."
+                  : "Bu öğrenciyi tekrar aktif etmek istediğinize emin misiniz?"}
+              </p>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <SecondaryButton
+                  type="button"
+                  onClick={closeToggleActiveModal}
+                  disabled={toggleSubmitting}
+                  className="w-full sm:w-auto"
+                >
+                  Vazgeç
+                </SecondaryButton>
+                <PrimaryButton
+                  type="submit"
+                  disabled={toggleSubmitting}
+                  className="w-full sm:w-auto"
+                >
+                  {toggleSubmitting
+                    ? "Güncelleniyor..."
+                    : toggleTarget.is_active !== false
+                      ? "Pasife Al"
+                      : "Aktif Et"}
+                </PrimaryButton>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {deleteTarget ? (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 py-6 sm:items-center sm:py-10"
+          onClick={(e) => {
+            if (deleteSubmitting) return;
+            if (e.target === e.currentTarget) {
+              setDeleteTarget(null);
+            }
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-student-modal-title"
+        >
+          <div
+            ref={deletePanelRef}
+            tabIndex={-1}
+            className="flex w-full max-w-md flex-col overflow-y-auto rounded-2xl border border-red-500/40 bg-surface outline-none"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-red-500/30 px-5 py-4 sm:px-6">
+              <h2
+                id="delete-student-modal-title"
+                className="text-base font-semibold tracking-tight text-red-300"
+              >
+                Öğrenciyi Kalıcı Sil
+              </h2>
+              <SecondaryButton
+                onClick={closeDeleteModal}
+                disabled={deleteSubmitting}
+                className="w-auto px-4 py-2 text-xs"
+                aria-label="Kapat"
+              >
+                Kapat
+              </SecondaryButton>
+            </div>
+
+            <form
+              onSubmit={handleDeleteSubmit}
+              className="flex flex-col gap-4 px-5 py-5 sm:px-6"
+            >
+              {deleteError ? (
+                <p
+                  role="alert"
+                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
+                >
+                  {deleteError}
+                </p>
+              ) : null}
+
+              <p className="text-sm leading-relaxed text-ink-text">
+                <span className="font-semibold text-ink-text">
+                  {deleteTarget.full_name?.trim() || "İsimsiz"}
+                </span>
+                {" adlı öğrenciyi kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz."}
+              </p>
+              <p className="text-xs leading-relaxed text-muted">
+                Öğrenciye bağlı randevular ve öğretmen eşleştirmeleri
+                etkilenebilir.
+              </p>
+
+              <TextInput
+                id="delete-student-confirm"
+                name="confirm_name"
+                label="Onay için öğrencinin adını birebir yazın"
+                placeholder={deleteTarget.full_name?.trim() || "Öğrenci adı"}
+                value={deleteConfirmName}
+                onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                  setDeleteConfirmName(e.target.value)
+                }
+                disabled={deleteSubmitting}
+                autoComplete="off"
+              />
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <SecondaryButton
+                  type="button"
+                  onClick={closeDeleteModal}
+                  disabled={deleteSubmitting}
+                  className="w-full sm:w-auto"
+                >
+                  Vazgeç
+                </SecondaryButton>
+                <PrimaryButton
+                  type="submit"
+                  disabled={
+                    deleteSubmitting ||
+                    deleteConfirmName.trim() !==
+                      (deleteTarget.full_name ?? "").trim()
+                  }
+                  className="w-full sm:w-auto rounded-full border border-red-500/30 bg-red-500/10 text-red-300 transition-colors duration-200 hover:bg-red-500/20 active:bg-red-500/30 focus-visible:ring-red-400/60"
+                >
+                  {deleteSubmitting ? "Siliniyor..." : "Kalıcı Sil"}
+                </PrimaryButton>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {toast ? (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-300 shadow-lg"
+        >
+          {toast}
+        </div>
+      ) : null}
     </main>
   );
 }
@@ -653,32 +1559,72 @@ function StatusBadge({ active }: { active: boolean }) {
   );
 }
 
-function ActionButtons() {
+function ActionButtons({
+  s,
+  onPwd,
+  onEdit,
+  onToggleActive,
+  onDelete,
+}: {
+  s: StudentRow;
+  onPwd: (s: StudentRow) => void;
+  onEdit: (s: StudentRow) => void;
+  onToggleActive: (s: StudentRow) => void;
+  onDelete: (s: StudentRow) => void;
+}) {
+  const isActive = s.is_active !== false;
+  const name = s.full_name?.trim() || "Öğrenci";
+
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
       <SecondaryButton
-        disabled
-        className="w-auto px-3 py-2 text-xs"
+        onClick={() => onEdit(s)}
+        aria-label={`${name} düzenle`}
+        className="w-full px-3 py-2 text-xs sm:w-auto"
       >
-        Düzenle
+        📝 Düzenle
       </SecondaryButton>
       <SecondaryButton
-        disabled
-        className="w-auto px-3 py-2 text-xs"
+        onClick={() => onPwd(s)}
+        aria-label={`${name} şifresini sıfırla`}
+        className="w-full px-3 py-2 text-xs sm:w-auto"
       >
-        Pasif Yap
+        🔑 Şifre Sıfırla
       </SecondaryButton>
       <SecondaryButton
-        disabled
-        className="w-auto px-3 py-2 text-xs"
+        onClick={() => onToggleActive(s)}
+        aria-label={
+          isActive ? `${name} pasife al` : `${name} aktif et`
+        }
+        className="w-full px-3 py-2 text-xs sm:w-auto"
       >
-        Sil
+        {isActive ? "⏸️ Pasife Al" : "▶️ Aktif Et"}
+      </SecondaryButton>
+      <SecondaryButton
+        type="button"
+        onClick={() => onDelete(s)}
+        aria-label={`${name} kalıcı sil`}
+        className="w-full px-3 py-2 text-xs sm:w-auto rounded-full border border-red-500/30 bg-transparent text-red-300 transition-colors duration-200 hover:bg-red-500/10 hover:border-red-500/50 active:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-ink focus-visible:ring-red-400/60"
+      >
+        🗑️ Kalıcı Sil
       </SecondaryButton>
     </div>
   );
 }
 
-function StudentRowDesktop({ s }: { s: StudentRow }) {
+function StudentRowDesktop({
+  s,
+  onPwd,
+  onEdit,
+  onToggleActive,
+  onDelete,
+}: {
+  s: StudentRow;
+  onPwd: (s: StudentRow) => void;
+  onEdit: (s: StudentRow) => void;
+  onToggleActive: (s: StudentRow) => void;
+  onDelete: (s: StudentRow) => void;
+}) {
   const isActive = s.is_active !== false;
   return (
     <tr className="text-ink-text">
@@ -703,14 +1649,32 @@ function StudentRowDesktop({ s }: { s: StudentRow }) {
       </td>
       <td className="px-3 py-3">
         <div className="flex justify-end">
-          <ActionButtons />
+          <ActionButtons
+            s={s}
+            onPwd={onPwd}
+            onEdit={onEdit}
+            onToggleActive={onToggleActive}
+            onDelete={onDelete}
+          />
         </div>
       </td>
     </tr>
   );
 }
 
-function StudentRowMobile({ s }: { s: StudentRow }) {
+function StudentRowMobile({
+  s,
+  onPwd,
+  onEdit,
+  onToggleActive,
+  onDelete,
+}: {
+  s: StudentRow;
+  onPwd: (s: StudentRow) => void;
+  onEdit: (s: StudentRow) => void;
+  onToggleActive: (s: StudentRow) => void;
+  onDelete: (s: StudentRow) => void;
+}) {
   const isActive = s.is_active !== false;
   return (
     <li className="flex flex-col gap-3 py-4">
@@ -731,7 +1695,13 @@ function StudentRowMobile({ s }: { s: StudentRow }) {
           </div>
         </div>
       </div>
-      <ActionButtons />
+      <ActionButtons
+        s={s}
+        onPwd={onPwd}
+        onEdit={onEdit}
+        onToggleActive={onToggleActive}
+        onDelete={onDelete}
+      />
     </li>
   );
 }

@@ -17,7 +17,9 @@ import {
   formatDuration,
   formatNotificationDate,
   formatTime,
+  formatWeekday,
   istanbulDayEndMs,
+  istanbulDayKeyFromDate,
   istanbulStartOfWeekMonday,
   istanbulTodayKey,
   istanbulTodayStart,
@@ -58,6 +60,10 @@ type AvailabilityRow = {
   start_time: string;
   end_time: string;
   status: "open" | "booked" | "blocked";
+  series_id?: string | null;
+  recurrence_rule?: "WEEKLY" | null;
+  recurrence_end_date?: string | null;
+  source_date?: string | null;
 };
 
 type FetchState = "loading" | "ready" | "error";
@@ -255,6 +261,7 @@ type AvailabilityForm = {
   startMin: string;
   endHour: string;
   endMin: string;
+  repeatWeekly: boolean;
 };
 
 const EMPTY_FORM: AvailabilityForm = {
@@ -263,6 +270,7 @@ const EMPTY_FORM: AvailabilityForm = {
   startMin: "",
   endHour: "",
   endMin: "",
+  repeatWeekly: false,
 };
 
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) =>
@@ -293,7 +301,7 @@ const EMPTY_STUDENT_FORM: NewStudentForm = {
 
 export default function OgretmenPanelPage() {
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { session, user, loading } = useAuth();
   const [roleLoading, setRoleLoading] = useState(true);
   const [allowed, setAllowed] = useState(false);
 
@@ -305,6 +313,9 @@ export default function OgretmenPanelPage() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [slotActionId, setSlotActionId] = useState<string | null>(null);
+  const [slotActionError, setSlotActionError] = useState<string | null>(null);
+  const [slotActionSuccess, setSlotActionSuccess] = useState<string | null>(null);
 
   const [appointments, setAppointments] = useState<AppointmentRow[]>([]);
   const [apptState, setApptState] = useState<FetchState>("loading");
@@ -628,7 +639,9 @@ export default function OgretmenPanelPage() {
     setErrorMsg(null);
     const { data, error } = await supabase
       .from("availability")
-      .select("id, available_date, start_time, end_time, status")
+      .select(
+        "id, available_date, start_time, end_time, status, series_id, recurrence_rule, recurrence_end_date, source_date",
+      )
       .eq("teacher_id", uid)
       .order("available_date", { ascending: true })
       .order("start_time", { ascending: true });
@@ -695,8 +708,17 @@ export default function OgretmenPanelPage() {
     setStudentsError(null);
 
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const accessToken = sessionData.session?.access_token ?? null;
+      // Access token'ı önce AuthProvider'ın context'inden al. Mobil bazı
+      // tarayıcılarda supabase.auth.getSession() çağrısı sessiz token refresh
+      // sırasında null dönebilir ve bu da API'ye Bearer gönderilememesine /
+      // 403 "yetkiniz yok" hatasına yol açar. Context'teki session ise
+      // onAuthStateChange ile sürekli günceldir; bunu öncelikli kullan, yoksa
+      // getSession() ile fallback dene.
+      let accessToken: string | null = session?.access_token ?? null;
+      if (!accessToken) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        accessToken = sessionData.session?.access_token ?? null;
+      }
 
       if (!accessToken) {
         setStudentsError("Oturum bulunamadı. Lütfen tekrar giriş yapın.");
@@ -729,7 +751,7 @@ export default function OgretmenPanelPage() {
       setStudentsError("Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.");
       setStudentsState("error");
     }
-  }, []);
+  }, [session]);
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => n.ok === false).length,
@@ -859,6 +881,75 @@ export default function OgretmenPanelPage() {
     };
   }, [allowed, user, fetchSlots, fetchAppointments]);
 
+  // Müsaitlikleri "Haftalık Tekrarlar" ve "Tek Seferlik Müsaitlikler" olarak
+  // ayırmak için client-side gruplama. Aynı series_id + start/end + hafta günü
+  // olan tekrarlar tek bir satırda gösterilir (kural 2/3/10).
+  const { seriesGroups, singles } = useMemo(() => {
+    const groups = new Map<string, AvailabilityRow[]>();
+    const singleSlots: AvailabilityRow[] = [];
+    for (const slot of slots) {
+      const isSeries = Boolean(
+        slot.recurrence_rule === "WEEKLY" && slot.series_id,
+      );
+      if (!isSeries) {
+        singleSlots.push(slot);
+        continue;
+      }
+      const key = seriesGroupKey(slot);
+      const arr = groups.get(key) ?? [];
+      arr.push(slot);
+      groups.set(key, arr);
+    }
+    // Her grup için sıralı tut (slots zaten available_date ascending).
+    const seriesGroupsArr = Array.from(groups.entries()).map(
+      ([key, groupSlots]) => {
+        const first = groupSlots[0];
+        const todayKey = istanbulTodayKey();
+        // Temsilci slot: bugünden itibaren ilk occurrence; yoksa en eski.
+        const upcoming =
+          groupSlots.find((s) => s.available_date >= todayKey) ??
+          groupSlots[0];
+        // "Bu Haftayı İptal Et": bugünün haftasındaki ilgili gün.
+        // Kural 4: hedef gün geçmişte ise kayıt üretme → cancelSlot = null.
+        const wd = weekdayIndexOf(first.source_date ?? first.available_date);
+        let cancelSlot: AvailabilityRow | null = null;
+        if (wd !== null) {
+          const weekStart = istanbulStartOfWeekMonday(new Date());
+          const targetKey = istanbulDayKeyFromDate(addDays(weekStart, wd));
+          if (targetKey >= todayKey) {
+            cancelSlot =
+              groupSlots.find((s) => s.available_date === targetKey) ?? null;
+          }
+        }
+        // Grup durumu: eğer tüm occurrence'lar aynı durumdaysa onu göster,
+        // değilse "Müsait" kabul et (ilk open olanı ara, yoksa ilk slot).
+        const statusOrder: AvailabilityRow["status"][] = [
+          "open",
+          "booked",
+          "blocked",
+        ];
+        const statusCounts = new Map<AvailabilityRow["status"], number>();
+        for (const s of groupSlots) {
+          statusCounts.set(s.status, (statusCounts.get(s.status) ?? 0) + 1);
+        }
+        const groupStatus =
+          statusCounts.size === 1
+            ? (groupSlots[0].status as AvailabilityRow["status"])
+            : statusOrder.find((st) => statusCounts.has(st)) ??
+              (groupSlots[0].status as AvailabilityRow["status"]);
+        return {
+          key,
+          repSlot: upcoming,
+          cancelSlot,
+          groupStatus,
+          count: groupSlots.length,
+          firstSlot: first,
+        };
+      },
+    );
+    return { seriesGroups: seriesGroupsArr, singles: singleSlots };
+  }, [slots]);
+
   if (loading || (user && roleLoading)) {
     return (
       <main className="flex min-h-dvh items-center justify-center px-6">
@@ -884,6 +975,86 @@ export default function OgretmenPanelPage() {
   async function handleApptRetry() {
     if (!user) return;
     await fetchAppointments(user.id);
+  }
+
+  // Müsaitlik silme: tek seferlik kayıtta yalnız o satırı siler; haftalık
+  // tekrar kaydında tüm seriyi (series_id) siler. booked'lar RLS tarafından
+  // silinemez (IDARE et: appointments silinince availability.status tekrar
+  // open'a dönmüyor — bu zaten mevcut davranış).
+  async function handleDeleteSlot(slot: AvailabilityRow) {
+    if (!user) return;
+    setSlotActionId(slot.id);
+    setSlotActionError(null);
+
+    const isSeries = Boolean(slot.recurrence_rule === "WEEKLY" && slot.series_id);
+
+    let deleteQuery;
+    if (isSeries) {
+      // Tüm seriyi sil.
+      deleteQuery = supabase
+        .from("availability")
+        .delete()
+        .eq("teacher_id", user.id)
+        .eq("series_id", slot.series_id!);
+    } else {
+      deleteQuery = supabase
+        .from("availability")
+        .delete()
+        .eq("teacher_id", user.id)
+        .eq("id", slot.id);
+    }
+
+    const { error } = await deleteQuery;
+    setSlotActionId(null);
+
+    if (error) {
+      setSlotActionError(
+        isSeries
+          ? "Haftalık tekrar silinemedi: " + (error.message ?? "Bilinmeyen hata")
+          : "Müsaitlik silinemedi: " + (error.message ?? "Bilinmeyen hata"),
+      );
+      return;
+    }
+
+    await fetchSlots(user.id);
+  }
+
+  // Belirli bir günü iptal et: haftalık tekrar serisinde sadece o occurrence'ı
+  // kapat. availability_overrides tablosuna action='cancel' satırı ekler.
+  // Tek seferlik kayıtlar için bu fonksiyon kullanılmaz (kullanıcı doğrudan
+  // sil butonunu kullanır).
+  async function handleCancelSlotDay(slot: AvailabilityRow) {
+    if (!user) return;
+    setSlotActionId(slot.id);
+    setSlotActionError(null);
+    setSlotActionSuccess(null);
+
+    const { error } = await supabase
+      .from("availability_overrides")
+      .upsert(
+        {
+          teacher_id: user.id,
+          series_id: slot.series_id!,
+          override_date: slot.available_date,
+          action: "cancel",
+          start_time: null,
+          end_time: null,
+        },
+        { onConflict: "series_id,override_date" },
+      );
+
+    setSlotActionId(null);
+
+    if (error) {
+      setSlotActionError(translateOverrideError(error));
+      return;
+    }
+
+    setSlotActionSuccess(
+      `${formatDateLong(slot.available_date)} tarihi için bu haftanın günü iptal edildi. ` +
+        "Öğrenciler bu günü artık göremez; serinin diğer haftaları devam ediyor.",
+    );
+    await fetchSlots(user.id);
   }
 
   async function updateAppointmentStatus(
@@ -913,6 +1084,11 @@ export default function OgretmenPanelPage() {
   function updateField(field: keyof typeof EMPTY_FORM, value: string) {
     setForm((p) => ({ ...p, [field]: value }));
     setFormErrors((p) => ({ ...p, [field]: "" }));
+    setSubmitError(null);
+  }
+
+  function updateRepeatWeekly(value: boolean) {
+    setForm((p) => ({ ...p, repeatWeekly: value }));
     setSubmitError(null);
   }
 
@@ -946,6 +1122,117 @@ export default function OgretmenPanelPage() {
     setSubmitting(true);
     setSubmitError(null);
 
+    // Geçmiş tarih kontrolü: datepicker minDayKey=istanbulTodayKey() ile
+    // kısıtlasa da savunma amaçlı tekrar doğrula.
+    const todayKey = istanbulTodayKey();
+    if (form.date < todayKey) {
+      setSubmitting(false);
+      setSubmitError("Geçmiş bir tarih için müsaitlik eklenemez.");
+      return;
+    }
+
+    if (form.repeatWeekly) {
+      // Haftalık tekrar: başlangıç tarihinden (form.date) itibaren her 7
+      // günde bir occurrence üret. Başlangıç haftası dahil toplam 52 tekrar
+      // için bitiş, başlangıçtan 51 hafta (357 gün) sonrası olarak ayarlanır.
+      // recurrence_end_date CHECK constraint (>='available_date') korunur.
+      const seriesId = crypto.randomUUID();
+      const recurrenceEndDate = istanbulDayKeyFromDate(
+        addDays(dateOnlyToDate(form.date)!, 7 * 51),
+      );
+
+      // Haftalık tekrar çakışma kontrolü: aynı öğretmenin, aynı haftanın
+      // gününde, çakışan saatte serisi varsa engelle. Bunun için tüm
+      // availability'i öğretmen için çekip JS tarafında çakışma test yapar.
+      const { data: allSlots, error: fetchError } = await supabase
+        .from("availability")
+        .select(
+          "id, available_date, start_time, end_time, status, series_id, recurrence_rule",
+        )
+        .eq("teacher_id", user.id);
+      if (fetchError) {
+        setSubmitting(false);
+        setSubmitError(
+          fetchError.message ??
+            "Mevcut müsaitlikler sorgulanamadı. Lütfen tekrar deneyin.",
+        );
+        return;
+      }
+
+      const allRows = (allSlots ?? []) as AvailabilityRow[];
+      // Üretilecek occurrence tarihlerini hazırla. Başlangıç tarihinden
+      // (form.date) itibaren her 7 gün, recurrence_end_date'e kadar. Başlangıç
+      // haftası dahil toplam 52 occurrence (~52 satır).
+      const occurrences: string[] = [];
+      const base = dateOnlyToDate(form.date);
+      if (!base) {
+        setSubmitting(false);
+        setSubmitError("Geçersiz tarih.");
+        return;
+      }
+      const endBoundary = dateOnlyToDate(recurrenceEndDate) ?? base;
+      for (
+        let d = base;
+        d.getTime() <= endBoundary.getTime();
+        d = addDays(d, 7)
+      ) {
+        occurrences.push(istanbulDayKeyFromDate(d));
+      }
+
+      // Çakışma testi: çakışma yalnızca "aynı takvim gününde" ve "çakışan
+      // saatte" olabilir. Haftalık seriler farklı günlerde olduğu için
+      // oluşumları çakışmaz. Tek seferlik kayıtlar da yalnızca aynı gün-
+      // lerde çakışır. Bu yüzden her occurrence'ı mevcut tüm satırlarla
+      // test etmek yeterli (N*M küçük çünkü gün sayısı N ~52, M mevcut
+      // satır sayısı küçük).
+      for (const occDate of occurrences) {
+        const clash = allRows.find(
+          (slot) =>
+            slot.available_date === occDate &&
+            startTime < slot.end_time &&
+            endTime > slot.start_time,
+        );
+        if (clash) {
+          setSubmitting(false);
+          setSubmitError(
+            `Bu saat aralığı mevcut bir müsaitliğinizle çakışıyor ` +
+              `(${occDate}). Lütfen saati değiştirin ya da önce o günün ` +
+              `müsaitliğini kaldırın.`,
+          );
+          return;
+        }
+      }
+
+      const rowsToInsert = occurrences.map((occDate) => ({
+        teacher_id: user.id,
+        available_date: occDate,
+        start_time: startTime,
+        end_time: endTime,
+        status: "open" as const,
+        series_id: seriesId,
+        recurrence_rule: "WEEKLY" as const,
+        recurrence_end_date: recurrenceEndDate,
+        source_date: form.date,
+      }));
+
+      const { error: insertError } = await supabase
+        .from("availability")
+        .insert(rowsToInsert);
+
+      setSubmitting(false);
+
+      if (insertError) {
+        setSubmitError(translateInsertError(insertError));
+        return;
+      }
+
+      setForm(EMPTY_FORM);
+      setFormErrors({});
+      await fetchSlots(user.id);
+      return;
+    }
+
+    // Tek seferlik müsaitlik (mevcut davranış).
     const { data: existingSlots, error: fetchError } = await supabase
       .from("availability")
       .select("id, available_date, start_time, end_time, status")
@@ -1246,6 +1533,27 @@ export default function OgretmenPanelPage() {
               </p>
             ) : null}
           </div>
+
+          <label
+            htmlFor="repeat-weekly"
+            className="mt-4 flex items-start gap-3 rounded-2xl border border-line bg-ink/40 p-4 cursor-pointer transition-colors duration-200 hover:border-line-strong"
+          >
+            <input
+              id="repeat-weekly"
+              type="checkbox"
+              checked={form.repeatWeekly}
+              onChange={(e) => updateRepeatWeekly(e.target.checked)}
+              className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-[var(--color-gold,#d4af37)]"
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="text-sm font-medium text-ink-text">
+                Her hafta aynı gün ve saatte tekrarla
+              </span>
+              <span className="text-xs leading-relaxed text-muted">
+                Seçilen gün ve saat, siz kaldırana kadar her hafta tekrarlanır.
+              </span>
+            </span>
+          </label>
 
           {submitError ? (
             <p
@@ -1563,27 +1871,154 @@ export default function OgretmenPanelPage() {
                 listelenecek.
               </p>
             ) : (
-              <ul className="divide-y divide-line">
-                {slots.map((slot) => (
-                  <li
-                    key={slot.id}
-                    className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
+              <>
+                {/* A) Haftalık Tekrarlar — aynı series_id'ye göre gruplanmış,
+                    her seri tek satır olarak gösterilir. */}
+                <section className="mb-6">
+                  <h3 className="mb-2 text-sm font-semibold tracking-tight text-ink-text">
+                    Haftalık Tekrarlar
+                  </h3>
+                  {seriesGroups.length === 0 ? (
+                    <p className="text-xs leading-relaxed text-muted">
+                      Henüz haftalık tekrarınız yok.
+                    </p>
+                  ) : (
+                    <ul className="divide-y divide-line rounded-xl border border-line">
+                      {seriesGroups.map((group) => {
+                        const rep = group.repSlot;
+                        const isBusy = slotActionId === rep.id;
+                        const canCancel = Boolean(group.cancelSlot);
+                        const cancelBusy =
+                          canCancel &&
+                          slotActionId === group.cancelSlot!.id;
+                        return (
+                          <li
+                            key={group.key}
+                            className="flex flex-col gap-2.5 py-3 sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-sm font-medium text-ink-text">
+                                {slotKindLabel(rep)}
+                              </span>
+                              <span className="text-xs text-muted">
+                                {formatTime(rep.start_time)} –{" "}
+                                {formatTime(rep.end_time)}
+                              </span>
+                              {group.count > 1 ? (
+                                <span className="text-xs text-subtle">
+                                  {group.count} haftalık tekrar
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                              <Badge
+                                tone={toneFor(group.groupStatus)}
+                                className="self-start"
+                              >
+                                {STATUS_LABEL[group.groupStatus]}
+                              </Badge>
+                              {group.groupStatus === "open" ? (
+                                <>
+                                  <SecondaryButton
+                                    onClick={() => handleDeleteSlot(rep)}
+                                    disabled={isBusy}
+                                    className="w-full sm:w-auto px-3 py-1.5 text-xs"
+                                    aria-label="Haftalık tekrarı kaldır"
+                                  >
+                                    {isBusy ? "..." : "Tüm Seriyi Sil"}
+                                  </SecondaryButton>
+                                  <SecondaryButton
+                                    onClick={() =>
+                                      handleCancelSlotDay(group.cancelSlot!)
+                                    }
+                                    disabled={!canCancel || cancelBusy}
+                                    className="w-full sm:w-auto px-3 py-1.5 text-xs"
+                                    aria-label="Bu haftanın ilgili gününü iptal et"
+                                  >
+                                    {cancelBusy
+                                      ? "..."
+                                      : "Bu Haftayı İptal Et"}
+                                  </SecondaryButton>
+                                </>
+                              ) : null}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </section>
+
+                {/* B) Tek Seferlik Müsaitlikler — tarih sırasıyla ayrı bölüm. */}
+                <section>
+                  <h3 className="mb-2 text-sm font-semibold tracking-tight text-ink-text">
+                    Tek Seferlik Müsaitlikler
+                  </h3>
+                  {singles.length === 0 ? (
+                    <p className="text-xs leading-relaxed text-muted">
+                      Tek seferlik müsaitliğiniz yok.
+                    </p>
+                  ) : (
+                    <ul className="divide-y divide-line rounded-xl border border-line">
+                      {singles.map((slot) => {
+                        const isBusy = slotActionId === slot.id;
+                        return (
+                          <li
+                            key={slot.id}
+                            className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
+                          >
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-sm font-medium text-ink-text">
+                                {formatDateLong(slot.available_date)}
+                              </span>
+                              <span className="text-xs text-muted">
+                                {formatTime(slot.start_time)} –{" "}
+                                {formatTime(slot.end_time)}
+                              </span>
+                              <span className="text-xs font-semibold text-gold">
+                                {slotKindLabel(slot)}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge tone={toneFor(slot.status)}>
+                                {STATUS_LABEL[slot.status]}
+                              </Badge>
+                              {slot.status === "open" ? (
+                                <SecondaryButton
+                                  onClick={() => handleDeleteSlot(slot)}
+                                  disabled={isBusy}
+                                  className="w-auto px-3 py-1.5 text-xs"
+                                  aria-label="Müsaitliği sil"
+                                >
+                                  {isBusy ? "..." : "Sil"}
+                                </SecondaryButton>
+                              ) : null}
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </section>
+
+                {slotActionError ? (
+                  <p
+                    role="alert"
+                    className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
                   >
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-sm font-medium text-ink-text">
-                        {formatDateLong(slot.available_date)}
-                      </span>
-                      <span className="text-xs text-muted">
-                        {formatTime(slot.start_time)} –{" "}
-                        {formatTime(slot.end_time)}
-                      </span>
-                    </div>
-                    <Badge tone={toneFor(slot.status)}>
-                      {STATUS_LABEL[slot.status]}
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
+                    {slotActionError}
+                  </p>
+                ) : null}
+
+                {slotActionSuccess ? (
+                  <p
+                    role="status"
+                    className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-300"
+                  >
+                    {slotActionSuccess}
+                  </p>
+                ) : null}
+              </>
             )}
           </div>
         </Card>
@@ -1901,6 +2336,51 @@ function toneFor(status: AvailabilityRow["status"]): "gold" | "neutral" {
   return status === "open" ? "gold" : "neutral";
 }
 
+// "Tek seferlik" ya da "Her hafta Pazartesi" etiketi üretir. Haftalık
+// tekrar için kaynak tarihin hafta içi gün adı (Europe/Istanbul) kullanılır.
+function slotKindLabel(slot: AvailabilityRow): string {
+  if (slot.recurrence_rule === "WEEKLY") {
+    const ref = slot.source_date ?? slot.available_date;
+    const weekday = formatWeekday(ref).replace(/^(.)(.*)$/, (_, a: string, b: string) =>
+      a.toUpperCase() + b,
+    );
+    return `Her hafta ${weekday}`;
+  }
+  return "Tek seferlik";
+}
+
+// "YYYY-MM-DD" tuşunun Europe/Istanbul hafta günü indeksi (Pzt=0 .. Paz=6).
+// Haftalık tekrar serilerini gruplamak ve "Bu haftanın X günü" tarihinı
+// hesaplamak için kullanılır. source_date yoksa available_date kullanılır.
+const WEEKDAY_INDEX_MAP: Record<string, number> = {
+  Pzt: 0,
+  Sal: 1,
+  Çar: 2,
+  Per: 3,
+  Cum: 4,
+  Cmt: 5,
+  Paz: 6,
+};
+function weekdayIndexOf(dayKey: string): number | null {
+  const date = dateOnlyToDate(dayKey);
+  if (!date) return null;
+  const parts = new Intl.DateTimeFormat("tr-TR", {
+    timeZone: "Europe/Istanbul",
+    weekday: "short",
+  }).formatToParts(date);
+  const wd = parts.find((p) => p.type === "weekday")?.value ?? "";
+  return wd in WEEKDAY_INDEX_MAP ? WEEKDAY_INDEX_MAP[wd] : null;
+}
+
+// Haftalık tekrar serisini "tek satır" olarak göstermek için gruplama anahtarı.
+// Aynı series_id olsa bile farklı start_time / end_time / hafta günü farklıysa
+// ayrı satır olsun (kural 10).
+function seriesGroupKey(slot: AvailabilityRow): string {
+  const ref = slot.source_date ?? slot.available_date;
+  const wd = weekdayIndexOf(ref);
+  return `${slot.series_id ?? ""}|${slot.start_time}|${slot.end_time}|${wd ?? -1}`;
+}
+
 function apptTone(status: AppointmentStatus): "gold" | "neutral" {
   if (status === "pending") return "gold";
   return "neutral";
@@ -1933,6 +2413,30 @@ function translateStatusError(error: {
     return "Bu randevunun durumunu değiştirme yetkiniz yok.";
   }
   return error.message ?? "İşlem gerçekleştirilemedi. Lütfen tekrar deneyin.";
+}
+
+// availability_overrides tablosuna cancel override yazarken dönebilecek
+// bilinen hataları Türkçe ve anlaşılır biçime çevirir.
+function translateOverrideError(error: {
+  code?: string;
+  message?: string;
+}): string {
+  // 42501: RLS reddi (politics veya tablo grant'lerinden kaynaklı).
+  if (error.code === "42501") {
+    return "Bu günü iptal etme yetkiniz yok. Oturumunuzu yenileyip tekrar deneyin.";
+  }
+  // 42P01: tablo mevcut değil (migration uygulanmamış).
+  if (error.code === "42P01") {
+    return "İptal altyapısı henüz hazır değil. Lütfen yöneticinize başvurun.";
+  }
+  // 23505: unique ihlali (upsert'te oluşmaz ama yine de ele al).
+  if (error.code === "23505") {
+    return "Bu gün zaten iptal edilmiş durumda.";
+  }
+  return (
+    error.message ??
+    "Bu haftanın günü iptal edilemedi. Lütfen tekrar deneyin."
+  );
 }
 
 const CALENDAR_HOUR_HEIGHT_PX = 56;

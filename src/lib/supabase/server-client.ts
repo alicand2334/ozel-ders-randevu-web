@@ -160,6 +160,61 @@ export async function verifyAdminActor(
 
 export type ActorInfo = { id: string; email: string | null };
 
+export async function verifyStudentActor(
+  request: Request,
+): Promise<ActorInfo | null> {
+  const authHeader = request.headers.get("authorization");
+  if (!authHeader) {
+    return null;
+  }
+
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!token) {
+    return null;
+  }
+
+  const authClient = createServiceClient();
+  let user: { id: string; email?: string | null } | null = null;
+  try {
+    const {
+      data: { user: u },
+      error,
+    } = await authClient.auth.getUser(token);
+
+    if (error || !u) {
+      return null;
+    }
+    user = u;
+  } catch {
+    return null;
+  }
+
+  // profiles sorgusu için RLS bypass (service_role) client kullanılır.
+  const dbClient = createServiceClient();
+  try {
+    const {
+      data: profile,
+      error: profileError,
+    } = await dbClient
+      .from("profiles")
+      .select("role, is_active")
+      .eq("id", user!.id)
+      .maybeSingle();
+
+    if (profileError || !profile) {
+      return null;
+    }
+
+    if (profile.role !== "student" || profile.is_active !== true) {
+      return null;
+    }
+
+    return { id: user!.id, email: user!.email ?? null };
+  } catch {
+    return null;
+  }
+}
+
 export async function verifyTeacherActor(
   request: Request,
 ): Promise<ActorInfo | null> {

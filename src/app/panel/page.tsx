@@ -182,7 +182,7 @@ export default function PanelPage() {
     (async () => {
       const { data, error } = await supabase
         .from("profiles")
-        .select("role")
+        .select("role, is_active")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -201,6 +201,34 @@ export default function PanelPage() {
       if (data?.role === "admin") {
         router.replace("/panel/admin");
         return;
+      }
+
+      // Student rolü için server-side aktiflik doğrulaması. profilden
+      // client-side okunan is_active bilgisine güvenilmez; öğrenciyi
+      // koruyan /api/auth/student-guard uç noktası server tarafından
+      // profiles.is_active değerini yeniden doğrular.
+      if (data?.role === "student") {
+        try {
+          const { data: sessionData } = await supabase.auth.getSession();
+          const accessToken = sessionData.session?.access_token ?? null;
+          if (accessToken) {
+            const guardRes = await fetch("/api/auth/student-guard", {
+              method: "GET",
+              headers: { Authorization: `Bearer ${accessToken}` },
+            });
+            if (guardRes.status === 403) {
+              const payload: { inactive?: boolean } = await guardRes.json();
+              if (payload.inactive === true) {
+                await supabase.auth.signOut();
+                router.replace("/giris");
+                return;
+              }
+            }
+          }
+        } catch {
+          // Guard ulaşılamzsa mevcut akışı bozma; client-side is_active
+          // doğru olsa bile yine de devam et.
+        }
       }
 
       setRoleLoading(false);

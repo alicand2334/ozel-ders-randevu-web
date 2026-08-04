@@ -211,14 +211,74 @@ export default function TeacherProfilePage() {
     setSelectedSlotId(null);
     setRequestedStartTime(null);
 
-    const { data, error } = await supabase
-      .from("availability")
-      .select("id, available_date, start_time, end_time, status")
-      .eq("teacher_id", teacherId)
-      .eq("status", "open");
+    // Öğrenci availability_overrides tablosunu doğrudan okuyamaz (RLS).
+    // Efektif müsaitlik server-side birleştirme endpoint'i üzerinden çekilir:
+    // availability + availability_overrides(cancel) birleştirilir ve yalnızca
+    // gerçekten müsait kayıtlar döner.
+    let accessToken: string | null = null;
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      accessToken = sessionData.session?.access_token ?? null;
+    } catch {
+      accessToken = null;
+    }
 
-    if (error) {
-      setSlotsError(translateSlotsError(error));
+    if (!accessToken) {
+      setSlotsError(
+        "Müsaitlik bilgilerini görmek için oturumunuz gerekli. Lütfen tekrar giriş yapın.",
+      );
+      setSlotsView("error");
+      return;
+    }
+
+    let res: Response;
+    try {
+      res = await fetch(
+        `/api/teacher/${encodeURIComponent(teacherId)}/effective-availability`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        },
+      );
+    } catch {
+      setSlotsError(
+        "Müsaitlikler yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.",
+      );
+      setSlotsView("error");
+      return;
+    }
+
+    if (res.status === 401) {
+      setSlotsError(
+        "Müsaitlik bilgilerini görmek için oturumunuz gerekli. Lütfen tekrar giriş yapın.",
+      );
+      setSlotsView("error");
+      return;
+    }
+    if (res.status === 403) {
+      setSlotsError(
+        "Müsaitlik bilgilerini görmek için yetkiniz yok.",
+      );
+      setSlotsView("error");
+      return;
+    }
+
+    let payload: { slots?: AvailabilityRow[]; error?: string } | null = null;
+    try {
+      payload = (await res.json()) as {
+        slots?: AvailabilityRow[];
+        error?: string;
+      } | null;
+    } catch {
+      payload = null;
+    }
+
+    if (!res.ok || !payload || !Array.isArray(payload.slots)) {
+      setSlotsError(
+        payload?.error ?? "Müsaitlikler yüklenemedi. Lütfen tekrar deneyin.",
+      );
       setSlotsView("error");
       return;
     }
@@ -226,7 +286,7 @@ export default function TeacherProfilePage() {
     const todayStr = istanbulTodayKey();
     const nowMinutes = istanbulNowMinutes();
 
-    const upcoming = ((data ?? []) as AvailabilityRow[])
+    const upcoming = (payload.slots as AvailabilityRow[])
       .filter((row) => {
         if (row.available_date > todayStr) return true;
         if (row.available_date < todayStr) return false;

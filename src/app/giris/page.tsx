@@ -48,12 +48,57 @@ export default function GirisPage() {
       email: email.trim(),
       password,
     });
-    setSubmitting(false);
 
     if (error) {
+      setSubmitting(false);
       setServerError(translateAuthError(error));
       return;
     }
+
+    // Server-side aktiflik kontrolü: öğrenci rolündeki kullanıcı pasifse
+    // (/profiles.is_active = false) sisteme girişi engellenir. Admin ve
+    // öğretmenler bu kontrolü atlar; onların kendi panel yönlendirmesi
+    // /panel altında yapılır.
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token ?? null;
+
+      if (accessToken) {
+        const guardRes = await fetch("/api/auth/student-guard", {
+          method: "GET",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (guardRes.status === 403) {
+          const payload: {
+            error?: string;
+            inactive?: boolean;
+            not_student?: boolean;
+            role?: string | null;
+          } = await guardRes.json();
+
+          // Yalnızca pasif ÖĞRENCİ girişini engelle.
+          if (payload.inactive === true) {
+            await supabase.auth.signOut();
+            setSubmitting(false);
+            setServerError(
+              payload.error ??
+                "Hesabınız pasife alınmıştır. Lütfen yöneticinizle iletişime geçin.",
+            );
+            return;
+          }
+
+          // not_student ise (admin/öğretmen) bu uca düşmesi normaldir;
+          // yönlendirmeye /panel altındaki role-dispatch tarafından devam
+          // edilir. Yani engelleme yapılmaz.
+        }
+      }
+    } catch {
+      // Guard ağı ulaşılabilir değilse mevcut akışı bozma; /panel kendi
+      // kontrolünü tekrar yapacaktır.
+    }
+
+    setSubmitting(false);
     router.push("/panel");
   }
 
