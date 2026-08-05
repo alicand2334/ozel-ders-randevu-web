@@ -22,31 +22,51 @@ function istanbulToday(): string {
   return formatter.format(new Date());
 }
 
-// Yaklaşık CRON_SECRET doğrulaması. Sabit zamanlı karşılaştirma
-// (timing-attack yüzünden) yerine kullanici claim ile karşılaştırma yapıyoruz:
-// Burada basit eşitlik kontrolü yeterli — sır Vercel env'inde tutuluyor ve
-// yalnızca Vercel Cron sender bu endpoint'e erişiyor.
+// CRON_SECRET doğrulaması. Vercel Cron bu endpoint'e Authorization:
+// Bearer <CRON_SECRET> header'ı yollar. GECICI TEŞHIS LOGU: her fail
+// noktasından once neden fail oldugunu logluyoruz; "No logs found" vermeye
+// son vermek için. Silinecek.
 function isAuthorized(request: Request): boolean {
   const authHeader = request.headers.get("authorization");
+  const expected = process.env.CRON_SECRET;
+
+  // Teşhis logu — her durumda header/env bilgisini görelim.
+  console.log("AUTH_HEADER =", authHeader);
+  console.log("CRON_SECRET_EXISTS =", !!process.env.CRON_SECRET);
+  console.log("EXPECTED =", expected ? `Bearer ${expected}` : null);
+
   if (!authHeader) {
+    console.log("AUTH_FAIL reason=1 header_yok");
     return false;
   }
-  const expected = process.env.CRON_SECRET;
   if (!expected) {
-    // CRON_SECRET tanımlı değilse endpoint'i tamamen kilitle.
+    console.log("AUTH_FAIL reason=2 cron_secret_env_yok");
     return false;
   }
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-  if (!token || token.length !== expected.length) {
+  if (!token) {
+    console.log("AUTH_FAIL reason=3 token_bos");
     return false;
   }
-  // Sabit zamanlı karşılaştırma (crypto.timingSafeEqual yerine sade bir
-  // constant-time döngü). Crypto çekmeden, eşit uzunluk garantisi ile.
+  if (token.length !== expected.length) {
+    console.log(
+      "AUTH_FAIL reason=4 uzunluk_farkli token_len=" +
+        token.length +
+        " expected_len=" +
+        expected.length,
+    );
+    return false;
+  }
   let diff = 0;
   for (let i = 0; i < expected.length; i++) {
     diff |= token.charCodeAt(i) ^ expected.charCodeAt(i);
   }
-  return diff === 0;
+  if (diff !== 0) {
+    console.log("AUTH_FAIL reason=5 icerik_farkli");
+    return false;
+  }
+  console.log("AUTH_OK");
+  return true;
 }
 
 // GET /api/cron/availability-cleanup
