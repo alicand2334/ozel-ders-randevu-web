@@ -16,8 +16,14 @@ export function createServiceClient() {
   const serviceRoleKey = getEnvOrThrow("SUPABASE_SERVICE_ROLE_KEY");
   // GECICI TEŞHIS LOGU — yalnızca ilk 20 karakter. Production'da
   // "Invalid API key" hatasının kaynağını belirlemek için. Silinecek.
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   console.log(
-    "SERVICE_ROLE_PREFIX=" + process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 20),
+    "SERVICE_ROLE_EXISTS=",
+    !!key,
+    "PREFIX=",
+    key ? key.substring(0, 20) : "UNDEFINED",
+    "LENGTH=",
+    key ? key.length : 0,
   );
   // Supabase-js, createClient(url, serviceRoleKey) ile service_role anahtarını
   // otomatik olarak `apikey` header'ına set eder; PostgREST service-role
