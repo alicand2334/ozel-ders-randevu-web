@@ -49,6 +49,10 @@ function optionalString(value: unknown): string | null {
 }
 
 export async function GET(request: Request): Promise<Response> {
+  console.warn(
+    "[GET /api/teacher/students] ISTEK alindi auth_header_mevcut=" +
+      Boolean(request.headers.get("authorization")),
+  );
   const authHeader = request.headers.get("authorization");
 
   const actor = await verifyTeacherActor(request);
@@ -59,6 +63,7 @@ export async function GET(request: Request): Promise<Response> {
         { status: 401 },
       );
     }
+    console.warn("[GET /api/teacher/students] 403 donduruldu (verifyTeacherActor=null)");
     return NextResponse.json(
       { error: "Bu işlem için yetkiniz bulunmuyor." },
       { status: 403 },

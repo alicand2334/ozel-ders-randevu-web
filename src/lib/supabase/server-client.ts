@@ -169,21 +169,24 @@ export async function verifyStudentActor(
 export async function verifyTeacherActor(
   request: Request,
 ): Promise<ActorInfo | null> {
+  const TAG = "[verifyTeacherActor]";
+
+  // 1) Authorization header var mı?
   const authHeader = request.headers.get("authorization");
   if (!authHeader) {
+    console.warn(`${TAG} 403 SEBEP=1 authorization_header=YOK`);
     return null;
   }
 
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   if (!token) {
+    console.warn(
+      `${TAG} 403 SEBEP=2 token=BOS header_len=${authHeader.length}`,
+    );
     return null;
   }
 
-  // auth.getUser(token) çağrısı için temiz, anon-key'li (apikey only) bir
-  // client kullanılır. Service-role client'ının global
-  // "Authorization: Bearer <service_role>" header'ı bu çağrıda token'la
-  // çakışıp GoTrue tarafında token doğrulamasını bozuyordu; production'da
-  // (GoTrue auth) esnek davranmıyordu — bu yüzden ayrı client zorunlu.
+  // 2) auth.getUser(token) başarılı mı? user.id nedir?
   const authClient = createAuthVerifyClient();
   let user: { id: string; email?: string | null } | null = null;
   try {
@@ -192,15 +195,29 @@ export async function verifyTeacherActor(
       error,
     } = await authClient.auth.getUser(token);
 
-    if (error || !u) {
+    if (error) {
+      console.warn(
+        `${TAG} 403 SEBEP=3 auth_getUser=HATA code=${error.code ?? "YOK"} message=${error.message ?? "YOK"}`,
+      );
       return null;
     }
+    if (!u) {
+      console.warn(`${TAG} 403 SEBEP=4 auth_getUser=USER_NULL`);
+      return null;
+    }
+    console.warn(
+      `${TAG} auth_getUser=OK user_id=${u.id} user_email=${u.email ?? "YOK"}`,
+    );
     user = u;
-  } catch {
+  } catch (e) {
+    const err = e as { code?: string; message?: string } | null;
+    console.warn(
+      `${TAG} 403 SEBEP=5 auth_getUser=EXCEPTION code=${err?.code ?? "YOK"} message=${err?.message ?? "YOK"}`,
+    );
     return null;
   }
 
-  // profiles sorgusu için RLS bypass (service_role) client kullanılır.
+  // 3/4/5) profiles sorgusu kaç satır, role ve is_active ne?
   const dbClient = createServiceClient();
   try {
     const {
@@ -212,22 +229,44 @@ export async function verifyTeacherActor(
       .eq("id", user!.id)
       .maybeSingle();
 
-    if (profileError || !profile) {
+    if (profileError) {
+      console.warn(
+        `${TAG} 403 SEBEP=6 profiles_query=HATA code=${profileError.code ?? "YOK"} message=${profileError.message ?? "YOK"}`,
+      );
+      return null;
+    }
+    if (!profile) {
+      console.warn(
+        `${TAG} 403 SEBEP=7 profiles_query=ROWS_0 user_id=${user!.id}`,
+      );
       return null;
     }
 
-    // role her zaman text gelir; is_active ise PostgREST üzerinden JSON'a
-    // düzgün boolean gelir, ancak bazı kurulumlarda kolon tipi numeric /
-    // smallint (0/1) veya "t"/"f" string olabilir. Production'da `!== true`
-    // bu durumları reddedip teacher kullanıcıyı 403'e düşürüyordu.
-    // Truthy kontrolü (1 / "t" / true) kabul, (0 / "f" / false / null)
-    // reddeder.
-    if (profile.role !== "teacher" || !profile.is_active) {
+    console.warn(
+      `${TAG} profiles_query=ROWS_1 role=${JSON.stringify(profile.role)} is_active=${JSON.stringify(profile.is_active)} is_active_type=${typeof profile.is_active}`,
+    );
+
+    // 6) 403'ün oluştuğu tam satır — tek satır kesin sebep
+    if (profile.role !== "teacher") {
+      console.warn(
+        `${TAG} 403 SEBEP=8 role_mismatch expected=teacher actual=${JSON.stringify(profile.role)}`,
+      );
+      return null;
+    }
+    if (profile.is_active !== true) {
+      console.warn(
+        `${TAG} 403 SEBEP=9 is_active_not_true value=${JSON.stringify(profile.is_active)} type=${typeof profile.is_active}`,
+      );
       return null;
     }
 
+    console.warn(`${TAG} OK teacher dogrulandi user_id=${user!.id}`);
     return { id: user!.id, email: user!.email ?? null };
-  } catch {
+  } catch (e) {
+    const err = e as { code?: string; message?: string } | null;
+    console.warn(
+      `${TAG} 403 SEBEP=10 profiles_query=EXCEPTION code=${err?.code ?? "YOK"} message=${err?.message ?? "YOK"}`,
+    );
     return null;
   }
 }
