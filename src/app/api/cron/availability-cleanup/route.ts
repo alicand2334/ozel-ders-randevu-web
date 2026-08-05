@@ -171,6 +171,18 @@ export async function GET(request: Request): Promise<Response> {
       `STAGE3 used_slot_ids_count=${usedIds.size} (appointments.slot_id kolonu uzerinden)`,
     );
 
+    // Teşhis: openPast'taki her satırın neden elendiğini/kaldığını açıkça
+    // logla, böylece STAGE3_unbooked_past_count=0 sonucunun sebebi netleşsin.
+    // - "unbooked" : appointments tablosunda bu id'ye sahip slot_id YOK
+    // - "booked"   : appointments.slot_id kümesinde bu id VAR → korunmalı
+    //                (pending/confirmed/cancelled/completed hepsi护卫)
+    for (const r of openPast) {
+      const isUsed = usedIds.has(r.id);
+      console.log(
+        `STAGE3_openPast_check id=${r.id} available_date=${r.available_date} series_id=${r.series_id} verdict=${isUsed ? "booked(keep)" : "unbooked(delete)"}`,
+      );
+    }
+
     const unbookedPast = openPast.filter((r) => !usedIds.has(r.id));
     logStage("STAGE3_unbooked_past", unbookedPast);
 
