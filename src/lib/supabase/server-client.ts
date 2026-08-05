@@ -14,21 +14,18 @@ function getEnvOrThrow(name: string): string {
 export function createServiceClient() {
   const url = getEnvOrThrow("NEXT_PUBLIC_SUPABASE_URL");
   const serviceRoleKey = getEnvOrThrow("SUPABASE_SERVICE_ROLE_KEY");
+  // Supabase-js, createClient(url, serviceRoleKey) ile service_role anahtarını
+  // otomatik olarak `apikey` header'ına set eder; PostgREST service-role
+  // bypass (RLS muafiyeti) için bu `apikey`'yi tanır. Manuel `Authorization:
+  // Bearer <service_role>` override etmek gereksizdir ve üretimde PostgREST
+  // tarafında "Invalid API key" hatasına yol açabilmektedir (apikey ile
+  // Authorization çakışıp geçersiz kombinasyon oluşabiliyordu). Bu yüzden
+  // global header override yapılmaz; supabase-js varsayılan davranışına
+  // bırakılır.
   return createClient(url, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
-    },
-    global: {
-      headers: {
-        // Service-role bypass (RLS muafiyeti) için PostgREST gateway'inin
-        // Authorization: Bearer <service_role> görmesi gerekir. Yeni anahtar
-        // formatlarında supabase-js anahtarı yalnızca `apikey` header'ına koyar
-        // ve Authorization'ı boş bırakır; bu da RLS'yi devrede bırakır.
-        // Yetkili server-side client olduğundan anahtarı Bearer olarak açıkça
-        // set ediyoruz.
-        Authorization: `Bearer ${serviceRoleKey}`,
-      },
     },
   });
 }
