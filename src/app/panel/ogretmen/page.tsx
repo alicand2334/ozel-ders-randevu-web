@@ -637,12 +637,19 @@ export default function OgretmenPanelPage() {
   const fetchSlots = useCallback(async (uid: string) => {
     setState("loading");
     setErrorMsg(null);
+    // Öğretmen takviminde yalnızca bugün ve sonrası (Europe/Istanbul) göster.
+    // Geçmiş slot'lar veritabanından silinmez (cron ile ilişkisiz open
+    // satırları silinir; appointments'a bağlılar korunur), yalnızca bu
+    // listelemede gizlenir — geçmiş randevular fetchAppointments'ta ayrı
+    // gelir ve dokunulmaz.
+    const todayKey = istanbulTodayKey();
     const { data, error } = await supabase
       .from("availability")
       .select(
         "id, available_date, start_time, end_time, status, series_id, recurrence_rule, recurrence_end_date, source_date",
       )
       .eq("teacher_id", uid)
+      .gte("available_date", todayKey)
       .order("available_date", { ascending: true })
       .order("start_time", { ascending: true });
     if (error) {

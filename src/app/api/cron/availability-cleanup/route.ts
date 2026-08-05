@@ -23,17 +23,12 @@ function istanbulToday(): string {
 }
 
 // CRON_SECRET doğrulaması. Vercel Cron bu endpoint'e Authorization:
-// Bearer <CRON_SECRET> header'ı yollar. GECICI TEŞHIS LOGU: her fail
-// noktasından once neden fail oldugunu logluyoruz; "No logs found" vermeye
-// son vermek için. Silinecek.
+// Bearer <CRON_SECRET> header'ı yollar. Sabit zamanlı karşılaştırma
+// (timing-attack'e dayanıklı); eşit olmayan uzunluklar için dahi döngü
+// çalışır, böylece süre sızıntısı olmaz.
 function isAuthorized(request: Request): boolean {
   const authHeader = request.headers.get("authorization");
   const expected = process.env.CRON_SECRET;
-
-  // Teşhis logu — her durumda header/env bilgisini görelim.
-  console.log("AUTH_HEADER =", authHeader);
-  console.log("CRON_SECRET_EXISTS =", !!process.env.CRON_SECRET);
-  console.log("EXPECTED =", expected ? `Bearer ${expected}` : null);
 
   if (!authHeader) {
     console.log("AUTH_FAIL reason=1 header_yok");
@@ -48,49 +43,21 @@ function isAuthorized(request: Request): boolean {
     console.log("AUTH_FAIL reason=3 token_bos");
     return false;
   }
-  if (token.length !== expected.length) {
-    console.log(
-      "AUTH_FAIL reason=4 uzunluk_farkli token_len=" +
-        token.length +
-        " expected_len=" +
-        expected.length,
-    );
-    return false;
-  }
-  let diff = 0;
-  for (let i = 0; i < expected.length; i++) {
-    diff |= token.charCodeAt(i) ^ expected.charCodeAt(i);
+  // Eşit uzunluk garantile: kısa token'ı padding yerine diff bayrağını
+  // kullanarak uzunluk farkını da sessizce işaretle.
+  const maxLen = Math.max(token.length, expected.length);
+  let diff = token.length ^ expected.length;
+  for (let i = 0; i < maxLen; i++) {
+    const tc = i < token.length ? token.charCodeAt(i) : 0;
+    const ec = i < expected.length ? expected.charCodeAt(i) : 0;
+    diff |= tc ^ ec;
   }
   if (diff !== 0) {
-    console.log("AUTH_FAIL reason=5 icerik_farkli");
+    console.log("AUTH_FAIL reason=4 token_mismatch");
     return false;
   }
   console.log("AUTH_OK");
   return true;
-}
-
-// ----------------------------------------------------------------------------
-// Teşhis yardımcıları: her aşamada sayı + en fazla 10 örnek kayıt loglar.
-// Örneklerde yalnızca id, available_date, status, series_id gösterilir.
-// ----------------------------------------------------------------------------
-type DiagRow = {
-  id: string;
-  available_date: string;
-  status: string;
-  series_id: string;
-};
-
-function logStage(label: string, rows: DiagRow[]): void {
-  console.log(`${label} count=${rows.length}`);
-  const samples = rows.slice(0, 10);
-  for (const r of samples) {
-    console.log(
-      `${label} sample id=${r.id} available_date=${r.available_date} status=${r.status} series_id=${r.series_id}`,
-    );
-  }
-  if (rows.length > 10) {
-    console.log(`${label} ... +${rows.length - 10} more`);
-  }
 }
 
 // GET /api/cron/availability-cleanup
@@ -106,6 +73,15 @@ function logStage(label: string, rows: DiagRow[]): void {
 //   completed) fark etmez — herhangi bir randevu kaydı slot'a bağlıysa o
 //   availability satırı korunur (FK on delete restrict zaten silinemez,
 //   biz sorgu seviyesinde de eliyoruz).
+//
+//   Dokunulmaz (Protected):
+//     - appointments satırları HİÇ silinmez/güncellenmez (0002: slot_id FK
+//       `on delete restrict`; appointments'a bağlı availability satırı
+//       silinemez).
+//     - Gelecekteki haftalık seriler korunsun diye: yalnızca
+//       available_date < today olan somut satırlar silinir. Seri tanımı
+//       yok edilmez; gelecekteki occurrence'lar dokunulmaz.
+//     - 'booked' / 'blocked' status'lu satırlar silinmez.
 export async function GET(request: Request): Promise<Response> {
   if (!isAuthorized(request)) {
     return NextResponse.json(
@@ -120,44 +96,28 @@ export async function GET(request: Request): Promise<Response> {
   const today = istanbulToday();
   console.log(`TODAY_ISTANBUL=${today}`);
 
+  // Özet sayaçlar (teşhis amaçlı güvenli loglar — hassas veri içermez).
+  let pastCount = 0;
+  let openPastCount = 0;
+  let unbookedPastCount = 0;
+
   try {
-    // --- Aşama 1: available_date < today olan TÜM availability kayıtları ---
-    //    (status filtresi yok; bu aşamada kaç geçmiş kayıt olduğunu görelim)
-    const { data: pastRows, error: pastError } = await admin
-      .from("availability")
-      .select("id, available_date, status, series_id")
-      .lt("available_date", today);
-
-    if (pastError) {
-      return NextResponse.json(
-        {
-          error: "Geçmiş availability sorgulanamadı.",
-          detail: pastError.message ?? null,
-          today,
-        },
-        { status: 500 },
-      );
-    }
-    const pastAll = (pastRows ?? []) as DiagRow[];
-    logStage("STAGE1_past_all", pastAll);
-
-    // --- Aşama 2: bunlardan status='open' olanlar ---
-    const openPast = pastAll.filter((r) => r.status === "open");
-    logStage("STAGE2_open_past", openPast);
-
-    // --- Aşama 3: appointments.slot_id ile ilişkisi OLMAYANlar ---
-    //    appointments tablosundan kullanılan tüm slot_id'leri topla (cancel
-    //    dahil). Hic appointments satırı yoksa usedIds bos kalir ve tüm
-    //    adaylar "ilişkisiz" sayilir.
+    // 1) Mevcut randevuların slot_id listesini topla (cancel dahil, FK
+    //    restrict nedeniyle bunlara sahip availability satırları hiçbir
+    //    koşulda silinemez). PostgREST alt-sorgu desteklemediği için bunu
+    //    iki adımda yapıyoruz: önce appointments.slot_id kümesi, sonra
+    //    availability filtrelemesi.
     const { data: usedSlots, error: usedError } = await admin
       .from("appointments")
       .select("slot_id");
 
     if (usedError) {
+      console.log(
+        `USED_SLOTS_ERROR code=${usedError.code ?? "YOK"} message=${usedError.message ?? "YOK"}`,
+      );
       return NextResponse.json(
         {
           error: "Mevcut randevular sorgulanamadı.",
-          detail: usedError.message ?? null,
           today,
         },
         { status: 500 },
@@ -167,48 +127,59 @@ export async function GET(request: Request): Promise<Response> {
     const usedIds = new Set(
       ((usedSlots ?? []) as { slot_id: string }[]).map((r) => r.slot_id),
     );
-    console.log(
-      `STAGE3 used_slot_ids_count=${usedIds.size} (appointments.slot_id kolonu uzerinden)`,
-    );
 
-    // Teşhis: openPast'taki her satırın neden elendiğini/kaldığını açıkça
-    // logla, böylece STAGE3_unbooked_past_count=0 sonucunun sebebi netleşsin.
-    // - "unbooked" : appointments tablosunda bu id'ye sahip slot_id YOK
-    // - "booked"   : appointments.slot_id kümesinde bu id VAR → korunmalı
-    //                (pending/confirmed/cancelled/completed hepsi护卫)
-    for (const r of openPast) {
-      const isUsed = usedIds.has(r.id);
+    // 2) Silinecek aday satırların id'lerini topla. Koşullar:
+    //      a) status = 'open'
+    //      b) available_date < today  (bugünden strict küçük)
+    //      c) id, kullanılan slot_id'ler arasında değil
+    //    (c) koşulu JS tarafında Set.has ile uygulanır.
+    const { data: pastRows, error: pastError } = await admin
+      .from("availability")
+      .select("id, status")
+      .lt("available_date", today);
+
+    if (pastError) {
       console.log(
-        `STAGE3_openPast_check id=${r.id} available_date=${r.available_date} series_id=${r.series_id} verdict=${isUsed ? "booked(keep)" : "unbooked(delete)"}`,
+        `PAST_QUERY_ERROR code=${pastError.code ?? "YOK"} message=${pastError.message ?? "YOK"}`,
+      );
+      return NextResponse.json(
+        {
+          error: "Geçmiş availability sorgulanamadı.",
+          today,
+        },
+        { status: 500 },
       );
     }
 
+    const pastAll = (pastRows ?? []) as { id: string; status: string }[];
+    pastCount = pastAll.length;
+    const openPast = pastAll.filter((r) => r.status === "open");
+    openPastCount = openPast.length;
     const unbookedPast = openPast.filter((r) => !usedIds.has(r.id));
-    logStage("STAGE3_unbooked_past", unbookedPast);
+    unbookedPastCount = unbookedPast.length;
+    const ids = unbookedPast.map((r) => r.id);
 
-    // --- Aşama 4: silinecek nihai kayıtlar ---
-    //    (unbookedPast ile aynı; ayrı clone idi ama netlik için ayrı logla)
-    const toDelete = unbookedPast.slice();
-    logStage("STAGE4_to_delete", toDelete);
-
-    const ids = toDelete.map((r) => r.id);
+    console.log(
+      `SUMMARY past=${pastCount} open_past=${openPastCount} used_slots=${usedIds.size} unbooked_past=${unbookedPastCount} to_delete=${ids.length}`,
+    );
 
     if (ids.length === 0) {
       // Geçmiş müsaitlik ya yok, ya booked/blocked, ya appointments'a bağlı.
       return NextResponse.json(
         {
           today,
-          pastCount: pastAll.length,
-          openPastCount: openPast.length,
-          unbookedPastCount: unbookedPast.length,
+          pastCount,
+          openPastCount,
+          unbookedPastCount,
           deleted: 0,
         },
         { status: 200 },
       );
     }
 
-    // --- Aşama 5: Toplu silme. FK on delete restrict kendini korur; race
-    //    durumunda delete hata döner (güvenli). ---
+    // 3) Toplu silme. Eğer arada appointments satırı oluşursa (race) FK
+    //    restrict kendini korur; delete hata döner (güvenli). count: exact
+    //    ile gerçek silinen satır sayısı döner.
     const { error: deleteError, count: deletedCount } = await admin
       .from("availability")
       .delete({ count: "exact" })
@@ -216,16 +187,15 @@ export async function GET(request: Request): Promise<Response> {
 
     if (deleteError) {
       console.log(
-        `DELETE_ERROR code=${deleteError.code ?? "YOK"} message=${deleteError.message ?? "YOK"}`,
+        `DELETE_ERROR code=${deleteError.code ?? "YOK"} message=${deleteError.message ?? "YOK"} attempted=${ids.length}`,
       );
       return NextResponse.json(
         {
           error: "Silme işlemi sırasında hata oluştu.",
-          detail: deleteError.message ?? null,
           today,
-          pastCount: pastAll.length,
-          openPastCount: openPast.length,
-          unbookedPastCount: unbookedPast.length,
+          pastCount,
+          openPastCount,
+          unbookedPastCount,
           candidate_count: ids.length,
         },
         { status: 500 },
@@ -239,9 +209,9 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json(
       {
         today,
-        pastCount: pastAll.length,
-        openPastCount: openPast.length,
-        unbookedPastCount: unbookedPast.length,
+        pastCount,
+        openPastCount,
+        unbookedPastCount,
         deleted: deletedCount ?? 0,
       },
       { status: 200 },
@@ -252,8 +222,10 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json(
       {
         error: "Beklenmeyen hata.",
-        detail: err?.message ?? null,
         today,
+        pastCount,
+        openPastCount,
+        unbookedPastCount,
       },
       { status: 500 },
     );
