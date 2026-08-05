@@ -14,6 +14,11 @@ function getEnvOrThrow(name: string): string {
 export function createServiceClient() {
   const url = getEnvOrThrow("NEXT_PUBLIC_SUPABASE_URL");
   const serviceRoleKey = getEnvOrThrow("SUPABASE_SERVICE_ROLE_KEY");
+  // GECICI TEŞHIS LOGU — yalnızca ilk 20 karakter. Production'da
+  // "Invalid API key" hatasının kaynağını belirlemek için. Silinecek.
+  console.log(
+    "SERVICE_ROLE_PREFIX=" + process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 20),
+  );
   // Supabase-js, createClient(url, serviceRoleKey) ile service_role anahtarını
   // otomatik olarak `apikey` header'ına set eder; PostgREST service-role
   // bypass (RLS muafiyeti) için bu `apikey`'yi tanır. Manuel `Authorization:
