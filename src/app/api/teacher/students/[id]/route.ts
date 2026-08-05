@@ -4,6 +4,10 @@ import {
   verifyTeacherActor,
 } from "@/lib/supabase/server-client";
 
+// Supabase service-role client ve admin Auth API çağrıları Node.js
+// runtime'ına bağlıdır; edge runtime'da çalışmaz.
+export const runtime = "nodejs";
+
 type ProfileRow = {
   id: string;
   full_name: string | null;

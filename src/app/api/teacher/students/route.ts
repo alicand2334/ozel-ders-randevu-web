@@ -8,6 +8,10 @@ import {
 } from "@/lib/supabase/server-client";
 import { isValidEmail } from "@/lib/supabase/auth-helpers";
 
+// Supabase service-role client ve admin Auth API çağrıları Node.js
+// runtime'ına bağlıdır; edge runtime'da çalışmaz.
+export const runtime = "nodejs";
+
 type CreateStudentPayload = {
   full_name?: unknown;
   email?: unknown;
@@ -45,34 +49,16 @@ function optionalString(value: unknown): string | null {
 }
 
 export async function GET(request: Request): Promise<Response> {
-  const TAG = "[GET /api/teacher/students]";
   const authHeader = request.headers.get("authorization");
-  console.warn(TAG, "istek alindi");
-  console.warn(TAG, "authHeader mevcut mu:", Boolean(authHeader));
-  console.warn(
-    TAG,
-    "authHeader uzunluk:",
-    authHeader ? authHeader.length : 0,
-  );
 
   const actor = await verifyTeacherActor(request);
-  console.warn(
-    TAG,
-    "verifyTeacherActor sonucu:",
-    actor ? `OK id=${actor.id}` : "NULL",
-  );
   if (!actor) {
     if (!authHeader) {
-      console.warn(TAG, "403/401 NEDEN: authHeader yok -> 401");
       return NextResponse.json(
         { error: "Oturum bulunamadı. Lütfen giriş yapın." },
         { status: 401 },
       );
     }
-    console.warn(
-      TAG,
-      "403 NEDEN: authHeader var ama verifyTeacherActor null dondu (rol/token/profile problemi).",
-    );
     return NextResponse.json(
       { error: "Bu işlem için yetkiniz bulunmuyor." },
       { status: 403 },
@@ -88,18 +74,6 @@ export async function GET(request: Request): Promise<Response> {
       .eq("teacher_id", actor.id);
 
     if (linksError) {
-      const errAny = linksError as {
-        code?: string;
-        message?: string;
-        details?: string;
-        hint?: string;
-      };
-      console.error("[GET /api/teacher/students] teacher_students sorgu hatası");
-      console.error("[GET /api/teacher/students] status: 500");
-      console.error("[GET /api/teacher/students] code:", errAny.code ?? "YOK");
-      console.error("[GET /api/teacher/students] message:", errAny.message ?? "YOK");
-      console.error("[GET /api/teacher/students] details:", errAny.details ?? "YOK");
-      console.error("[GET /api/teacher/students] hint:", errAny.hint ?? "YOK");
       return NextResponse.json(
         { error: "Öğrenci listesi getirilemedi." },
         { status: 500 },
@@ -120,18 +94,6 @@ export async function GET(request: Request): Promise<Response> {
         .in("id", studentIds);
 
     if (profilesError) {
-      const errAny = profilesError as {
-        code?: string;
-        message?: string;
-        details?: string;
-        hint?: string;
-      };
-      console.error("[GET /api/teacher/students] profiles sorgu hatası");
-      console.error("[GET /api/teacher/students] status: 500");
-      console.error("[GET /api/teacher/students] code:", errAny.code ?? "YOK");
-      console.error("[GET /api/teacher/students] message:", errAny.message ?? "YOK");
-      console.error("[GET /api/teacher/students] details:", errAny.details ?? "YOK");
-      console.error("[GET /api/teacher/students] hint:", errAny.hint ?? "YOK");
       return NextResponse.json(
         { error: "Öğrenci listesi getirilemedi." },
         { status: 500 },
@@ -140,21 +102,7 @@ export async function GET(request: Request): Promise<Response> {
 
     const rows = (profiles ?? []) as StudentListRow[];
     return NextResponse.json(rows, { status: 200 });
-  } catch (e) {
-    const err = e as {
-      code?: string;
-      message?: string;
-      details?: string;
-      hint?: string;
-      stack?: string;
-    } | null;
-    console.error("[GET /api/teacher/students] beklenmeyen exception");
-    console.error("[GET /api/teacher/students] status: 500");
-    console.error("[GET /api/teacher/students] code:", err?.code ?? "YOK");
-    console.error("[GET /api/teacher/students] message:", err?.message ?? "YOK");
-    console.error("[GET /api/teacher/students] details:", err?.details ?? "YOK");
-    console.error("[GET /api/teacher/students] hint:", err?.hint ?? "YOK");
-    console.error("[GET /api/teacher/students] stack:", err?.stack ?? "YOK");
+  } catch {
     return NextResponse.json(
       { error: "Öğrenci listesi getirilemedi." },
       { status: 500 },

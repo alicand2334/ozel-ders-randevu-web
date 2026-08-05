@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
-import { createServiceClient } from "@/lib/supabase/server-client";
+import {
+  createAuthVerifyClient,
+  createServiceClient,
+} from "@/lib/supabase/server-client";
+
+// Supabase service-role client ve admin Auth API çağrıları Node.js
+// runtime'ına bağlıdır; edge runtime'da çalışmaz.
+export const runtime = "nodejs";
 
 // GET /api/auth/student-guard
 //   Client-side giriş akışında çağrılır._server tarafından access token
@@ -29,7 +36,12 @@ export async function GET(request: Request): Promise<Response> {
     );
   }
 
-  const authClient = createServiceClient();
+  // Token doğrulaması için service-role client'inin global
+  // "Authorization: Bearer <service_role>" header'ı ile auth.getUser(token)
+  // çağrısı çakışıp GoTrue tarafında token doğrulamasını bozuyordu
+  // (production'da esnek davranmıyordu). Bu yüzden anon-key'li, apikey
+  // only ayrı bir auth doğrulama client kullanılır.
+  const authClient = createAuthVerifyClient();
   let userId: string | null = null;
   try {
     const {
@@ -86,7 +98,7 @@ export async function GET(request: Request): Promise<Response> {
       );
     }
 
-    if (profile.is_active === false) {
+    if (!profile.is_active) {
       return NextResponse.json(
         {
           error:

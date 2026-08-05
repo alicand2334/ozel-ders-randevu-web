@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
 function getEnvOrThrow(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -36,22 +33,42 @@ export function createServiceClient() {
   });
 }
 
+// auth.getUser(token) çağrısı için kullanılan anon-key'li client. Service-role
+// client'ının global "Authorization: Bearer <service_role>" header'ı, supabase-js
+// `auth.getUser(token)` sırasında set edilen "Authorization: Bearer <token>"
+// header'ı ile çakışıp production (GoTrue auth) tarafında token doğrulamasını
+// bozabiliyordu (lokalde esnek davranıyordu). Bu yüzden kullanıcı JWT'sini
+// doğrulamak için temiz, anon-key'li (apikey only) bir client kullanıyoruz.
+// PostgREST/RLS bu client ile çalıştırılmaz; profiles sorgusu için ayrı service
+// client (createServiceClient) kullanılır.
+export function createAuthVerifyClient() {
+  const url = getEnvOrThrow("NEXT_PUBLIC_SUPABASE_URL");
+  const anonKey = getEnvOrThrow("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  return createClient(url, anonKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+}
+
 export async function verifyAdminActor(
   request: Request,
 ): Promise<{ id: string; email: string | null } | null> {
   const authHeader = request.headers.get("authorization");
   if (!authHeader) {
-    console.warn("[verifyAdminActor] 1) Authorization header: yok");
     return null;
   }
 
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   if (!token) {
-    console.warn("[verifyAdminActor] 2) Token: boş (header mevcut ama içerik yok)");
     return null;
   }
 
-  const authClient = createServiceClient();
+  // auth.getUser(token) için service-role client'inin global
+  // "Authorization: Bearer <service_role>" header'ı ile token çakıştığından
+  // ayrı, anon-key'li (apikey only) temiz client kullanılır.
+  const authClient = createAuthVerifyClient();
   let user: { id: string; email?: string | null } | null = null;
   try {
     const {
@@ -59,41 +76,15 @@ export async function verifyAdminActor(
       error,
     } = await authClient.auth.getUser(token);
 
-    if (error) {
-      console.warn("[verifyAdminActor] 3) admin.auth.getUser: başarısız");
-      console.warn("[verifyAdminActor] 3a) error code:", error.code ?? "YOK");
-      console.warn("[verifyAdminActor] 3b) error.message:", error.message ?? "YOK");
-      console.warn("[verifyAdminActor] 4) user.id: dönen user yok (hata sebebiyle)");
+    if (error || !u) {
       return null;
     }
-
-    if (!u) {
-      console.warn("[verifyAdminActor] 3) admin.auth.getUser: hata yok ama user null");
-      console.warn("[verifyAdminActor] 4) user.id: yok");
-      return null;
-    }
-
-    console.warn("[verifyAdminActor] 3) admin.auth.getUser: başarılı");
-    console.warn("[verifyAdminActor] 4) user.id: var");
     user = u;
-  } catch (e) {
-    console.warn("[verifyAdminActor] 3) admin.auth.getUser: EXCEPTION fırlattı");
-    const err = e as { code?: string; message?: string; details?: string; hint?: string } | null;
-    console.warn("[verifyAdminActor] 3x) code:", err?.code ?? "YOK");
-    console.warn("[verifyAdminActor] 3x) message:", err?.message ?? "YOK");
-    console.warn("[verifyAdminActor] 3x) details:", err?.details ?? "YOK");
-    console.warn("[verifyAdminActor] 3x) hint:", err?.hint ?? "YOK");
-    console.warn(
-      "[verifyAdminActor] 3x) constructor:",
-      e instanceof Error ? e.constructor.name : typeof e,
-    );
+  } catch {
     return null;
   }
 
-  // getUser(token), authClient'in yetkilendirme bağlamını kullanıcının access
-  // token'ına ayarlar; sonraki sorgular RLS'i kullanıcısı olarak çalıştırır.
-  // profiles sorgusu için ayrı, hiçbir token SET edilmemiş service-role client
-  // kullanılır -> RLS bypass (service_role) -> 42501 engellenir.
+  // profiles sorgusu için RLS bypass (service_role) client kullanılır.
   const dbClient = createServiceClient();
   try {
     const { data: profile, error: profileError } = await dbClient
@@ -102,58 +93,16 @@ export async function verifyAdminActor(
       .eq("id", user!.id)
       .maybeSingle();
 
-    if (profileError) {
-      console.warn(
-        "[verifyAdminActor] 5) profiles sorgusu: hata -> kaynağı: dbClient.from('profiles').select(...)",
-      );
-      console.warn("[verifyAdminActor] 5a) error code:", profileError.code ?? "YOK");
-      console.warn(
-        "[verifyAdminActor] 5b) error.message:",
-        profileError.message ?? "YOK",
-      );
-      console.warn(
-        "[verifyAdminActor] 5c) error.details:",
-        (profileError as { details?: string }).details ?? "YOK",
-      );
-      console.warn(
-        "[verifyAdminActor] 5d) error.hint:",
-        (profileError as { hint?: string }).hint ?? "YOK",
-      );
+    if (profileError || !profile) {
       return null;
     }
-
-    if (!profile) {
-      console.warn("[verifyAdminActor] 6) Profil: bulunamadı (satır yok)");
-      return null;
-    }
-
-    console.warn("[verifyAdminActor] 6) Profil: bulundu");
-    console.warn("[verifyAdminActor] 7) profile.role:", profile.role ?? "YOK");
 
     if (profile.role !== "admin") {
-      console.warn("[verifyAdminActor] 7a) role !== admin -> reddediliyor");
       return null;
     }
 
     return { id: user!.id, email: user!.email ?? null };
-  } catch (e) {
-    console.warn(
-      "[verifyAdminActor] 5x) profiles sorgusu: EXCEPTION fırlattı -> kaynağı: dbClient.from('profiles')",
-    );
-    const err = e as {
-      code?: string;
-      message?: string;
-      details?: string;
-      hint?: string;
-    } | null;
-    console.warn("[verifyAdminActor] 5xa) code:", err?.code ?? "YOK");
-    console.warn("[verifyAdminActor] 5xb) message:", err?.message ?? "YOK");
-    console.warn("[verifyAdminActor] 5xc) details:", err?.details ?? "YOK");
-    console.warn("[verifyAdminActor] 5xd) hint:", err?.hint ?? "YOK");
-    console.warn(
-      "[verifyAdminActor] 5xe) constructor:",
-      e instanceof Error ? e.constructor.name : typeof e,
-    );
+  } catch {
     return null;
   }
 }
@@ -173,7 +122,7 @@ export async function verifyStudentActor(
     return null;
   }
 
-  const authClient = createServiceClient();
+  const authClient = createAuthVerifyClient();
   let user: { id: string; email?: string | null } | null = null;
   try {
     const {
@@ -205,7 +154,9 @@ export async function verifyStudentActor(
       return null;
     }
 
-    if (profile.role !== "student" || profile.is_active !== true) {
+    // Açıklama için bkz. verifyTeacherActor: `is_active` kolon tipi
+    // numeric/string olabileceğinden katı `!== true` yerine truthy kontrol.
+    if (profile.role !== "student" || !profile.is_active) {
       return null;
     }
 
@@ -218,22 +169,22 @@ export async function verifyStudentActor(
 export async function verifyTeacherActor(
   request: Request,
 ): Promise<ActorInfo | null> {
-  const TAG = "[verifyTeacherActor]";
   const authHeader = request.headers.get("authorization");
   if (!authHeader) {
-    console.warn(TAG, "1) Authorization header: YOK");
     return null;
   }
-  console.warn(TAG, "1) Authorization header: mevcut");
 
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   if (!token) {
-    console.warn(TAG, "2) Bearer token: BOS (header var ama icerek yok)");
     return null;
   }
-  console.warn(TAG, "2) Bearer token: mevcut, uzunluk=", token.length);
 
-  const authClient = createServiceClient();
+  // auth.getUser(token) çağrısı için temiz, anon-key'li (apikey only) bir
+  // client kullanılır. Service-role client'ının global
+  // "Authorization: Bearer <service_role>" header'ı bu çağrıda token'la
+  // çakışıp GoTrue tarafında token doğrulamasını bozuyordu; production'da
+  // (GoTrue auth) esnek davranmıyordu — bu yüzden ayrı client zorunlu.
+  const authClient = createAuthVerifyClient();
   let user: { id: string; email?: string | null } | null = null;
   try {
     const {
@@ -241,27 +192,11 @@ export async function verifyTeacherActor(
       error,
     } = await authClient.auth.getUser(token);
 
-    if (error) {
-      console.warn(TAG, "3) auth.getUser: HATA");
-      console.warn(TAG, "3a) code:", error.code ?? "YOK");
-      console.warn(TAG, "3b) message:", error.message ?? "YOK");
+    if (error || !u) {
       return null;
     }
-    if (!u) {
-      console.warn(TAG, "3) auth.getUser: hata yok ama user null");
-      return null;
-    }
-    console.warn(TAG, "3) auth.getUser: basarili");
-    console.warn(TAG, "3a) user.id:", u.id ?? "YOK");
-    console.warn(TAG, "3b) user.email:", u.email ?? "YOK");
     user = u;
-  } catch (e) {
-    console.warn(TAG, "3) auth.getUser: EXCEPTION firlatti");
-    const err = e as { code?: string; message?: string; details?: string; hint?: string } | null;
-    console.warn(TAG, "3x) code:", err?.code ?? "YOK");
-    console.warn(TAG, "3x) message:", err?.message ?? "YOK");
-    console.warn(TAG, "3x) details:", err?.details ?? "YOK");
-    console.warn(TAG, "3x) hint:", err?.hint ?? "YOK");
+  } catch {
     return null;
   }
 
@@ -277,75 +212,22 @@ export async function verifyTeacherActor(
       .eq("id", user!.id)
       .maybeSingle();
 
-    if (profileError) {
-      console.warn(TAG, "4) profiles sorgusu: HATA");
-      console.warn(TAG, "4a) code:", profileError.code ?? "YOK");
-      console.warn(
-        TAG,
-        "4b) message:",
-        (profileError as { message?: string }).message ?? "YOK",
-      );
-      console.warn(
-        TAG,
-        "4c) details:",
-        (profileError as { details?: string }).details ?? "YOK",
-      );
-      console.warn(
-        TAG,
-        "4d) hint:",
-        (profileError as { hint?: string }).hint ?? "YOK",
-      );
-      return null;
-    }
-    if (!profile) {
-      console.warn(
-        TAG,
-        "4) profiles sorgusu: hata yok ama profil null (profiles tablosunda user.id",
-        user!.id,
-        "icin satir yok)",
-      );
+    if (profileError || !profile) {
       return null;
     }
 
-    console.warn(TAG, "4) profiles sorgusu: basarili");
-    console.warn(TAG, "4a) profile.role:", profile.role ?? "YOK");
-    console.warn(TAG, "4b) profile.is_active:", profile.is_active);
-
-    if (profile.role !== "teacher" || profile.is_active !== true) {
-      console.warn(
-        TAG,
-        "5) ROL KONTROLU: teacher degil veya is_active degil",
-      );
-      console.warn(TAG, "5a) role:", profile.role, "(", typeof profile.role, ")");
- 
-      console.warn(
-        TAG,
-        "5b) is_active:",
-        profile.is_active,
-        "(",
-        typeof profile.is_active,
-        ")",
-      );
+    // role her zaman text gelir; is_active ise PostgREST üzerinden JSON'a
+    // düzgün boolean gelir, ancak bazı kurulumlarda kolon tipi numeric /
+    // smallint (0/1) veya "t"/"f" string olabilir. Production'da `!== true`
+    // bu durumları reddedip teacher kullanıcıyı 403'e düşürüyordu.
+    // Truthy kontrolü (1 / "t" / true) kabul, (0 / "f" / false / null)
+    // reddeder.
+    if (profile.role !== "teacher" || !profile.is_active) {
       return null;
     }
 
-    console.warn(TAG, "6) OK -> teacher dogrulandi, user.id:", user!.id);
     return { id: user!.id, email: user!.email ?? null };
-  } catch (e) {
-    console.warn(
-      TAG,
-      "4) profiles sorgusu: EXCEPTION firlatti -> kaynagi: dbClient.from('profiles')",
-    );
-    const err = e as {
-      code?: string;
-      message?: string;
-      details?: string;
-      hint?: string;
-    } | null;
-    console.warn(TAG, "4x) code:", err?.code ?? "YOK");
-    console.warn(TAG, "4x) message:", err?.message ?? "YOK");
-    console.warn(TAG, "4x) details:", err?.details ?? "YOK");
-    console.warn(TAG, "4x) hint:", err?.hint ?? "YOK");
+  } catch {
     return null;
   }
 }
