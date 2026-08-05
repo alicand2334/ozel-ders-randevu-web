@@ -69,6 +69,30 @@ function isAuthorized(request: Request): boolean {
   return true;
 }
 
+// ----------------------------------------------------------------------------
+// Teşhis yardımcıları: her aşamada sayı + en fazla 10 örnek kayıt loglar.
+// Örneklerde yalnızca id, available_date, status, series_id gösterilir.
+// ----------------------------------------------------------------------------
+type DiagRow = {
+  id: string;
+  available_date: string;
+  status: string;
+  series_id: string;
+};
+
+function logStage(label: string, rows: DiagRow[]): void {
+  console.log(`${label} count=${rows.length}`);
+  const samples = rows.slice(0, 10);
+  for (const r of samples) {
+    console.log(
+      `${label} sample id=${r.id} available_date=${r.available_date} status=${r.status} series_id=${r.series_id}`,
+    );
+  }
+  if (rows.length > 10) {
+    console.log(`${label} ... +${rows.length - 10} more`);
+  }
+}
+
 // GET /api/cron/availability-cleanup
 //   Her gün bir kez Vercel Cron tarafından çalıştırılır. Yalnızca:
 //     - status = 'open' (müsait) ve
@@ -77,20 +101,11 @@ function isAuthorized(request: Request): boolean {
 //       completed dahil) bağlı olmayan
 //   availability satırlarını siler.
 //
-//   Güvenlik:
-//     - Authorization: Bearer <CRON_SECRET> doğrulaması zorunlu.
-//     - Silme, service-role Supabase client üzerinden (RLS bypass) yapılır;
-//       istemci tarafından doğrudan tetiklenemez.
-//
-//   Dokunulmaz (Protected):
-//     - appointments satırları HİÇ silinir/bozulmaz (0002'de slot_id FK
-//       `on delete restrict` ile; bu yüzden appointments'a bağlı availability
-//       satırı silinemez — aşağıdaki `not exists` koşulu + restrict çift
-//       güvenlik).
-//     - Gelecekteki haftalık seriler korunsun diye: yalnızca
-//       available_date < today olan somut satırlar silinir. Seri kendiliğinden
-//       yok edilmez; gelecekteki occurrence'lar dokunulmaz.
-//     - 'booked' / 'blocked' status'lu satırlar silinmez.
+//   appointments ilişkisi: appointments.slot_id kolonu üzerinden kontrol
+//   edilir. appointments satırının durumu (pending/confirmed/cancelled/
+//   completed) fark etmez — herhangi bir randevu kaydı slot'a bağlıysa o
+//   availability satırı korunur (FK on delete restrict zaten silinemez,
+//   biz sorgu seviyesinde de eliyoruz).
 export async function GET(request: Request): Promise<Response> {
   if (!isAuthorized(request)) {
     return NextResponse.json(
@@ -103,13 +118,37 @@ export async function GET(request: Request): Promise<Response> {
 
   // Europe/Istanbul için bugünün tarihini hesapla.
   const today = istanbulToday();
+  console.log(`TODAY_ISTANBUL=${today}`);
 
   try {
-    // 1) Mevcut randevuların slot_id listesini topla (cancel dahil, FK
-    //    restrict nedeniyle bunlara sahip availability satırları hiçbir
-    //    koşulda silinemez). PostgREST alt-sorgu desteklemediği için bunu
-    //    iki adımda yapıyoruz: önce appointments.slot_id kümesi, sonra
-    //    availability sorgusunda NOT IN.
+    // --- Aşama 1: available_date < today olan TÜM availability kayıtları ---
+    //    (status filtresi yok; bu aşamada kaç geçmiş kayıt olduğunu görelim)
+    const { data: pastRows, error: pastError } = await admin
+      .from("availability")
+      .select("id, available_date, status, series_id")
+      .lt("available_date", today);
+
+    if (pastError) {
+      return NextResponse.json(
+        {
+          error: "Geçmiş availability sorgulanamadı.",
+          detail: pastError.message ?? null,
+          today,
+        },
+        { status: 500 },
+      );
+    }
+    const pastAll = (pastRows ?? []) as DiagRow[];
+    logStage("STAGE1_past_all", pastAll);
+
+    // --- Aşama 2: bunlardan status='open' olanlar ---
+    const openPast = pastAll.filter((r) => r.status === "open");
+    logStage("STAGE2_open_past", openPast);
+
+    // --- Aşama 3: appointments.slot_id ile ilişkisi OLMAYANlar ---
+    //    appointments tablosundan kullanılan tüm slot_id'leri topla (cancel
+    //    dahil). Hic appointments satırı yoksa usedIds bos kalir ve tüm
+    //    adaylar "ilişkisiz" sayilir.
     const { data: usedSlots, error: usedError } = await admin
       .from("appointments")
       .select("slot_id");
@@ -119,82 +158,85 @@ export async function GET(request: Request): Promise<Response> {
         {
           error: "Mevcut randevular sorgulanamadı.",
           detail: usedError.message ?? null,
+          today,
         },
         { status: 500 },
       );
     }
 
-    const usedIds = ((usedSlots ?? []) as { slot_id: string }[]).map(
-      (r) => r.slot_id,
+    const usedIds = new Set(
+      ((usedSlots ?? []) as { slot_id: string }[]).map((r) => r.slot_id),
+    );
+    console.log(
+      `STAGE3 used_slot_ids_count=${usedIds.size} (appointments.slot_id kolonu uzerinden)`,
     );
 
-    // 2) Silinecek aday satırların id'lerini topla.
-    //    Koşullar:
-    //      a) status = 'open'
-    //      b) available_date < today  (bugünden严格的 küçük — dünün ve öncesi)
-    //      c) id, kullanılan slot_id'ler arasında değil (cancel/confirmed/
-    //         completed hepsi FK restrict ile zaten korunur, ama yine de
-    //         sorgu seviyesinde eliyoruz).
-    let query = admin
-      .from("availability")
-      .select("id")
-      .eq("status", "open")
-      .lt("available_date", today);
+    const unbookedPast = openPast.filter((r) => !usedIds.has(r.id));
+    logStage("STAGE3_unbooked_past", unbookedPast);
 
-    if (usedIds.length > 0) {
-      query = query.not("id", "in", `(${usedIds.join(",")})`);
-    }
+    // --- Aşama 4: silinecek nihai kayıtlar ---
+    //    (unbookedPast ile aynı; ayrı clone idi ama netlik için ayrı logla)
+    const toDelete = unbookedPast.slice();
+    logStage("STAGE4_to_delete", toDelete);
 
-    const { data: candidates, error: selectError } = await query;
-
-    if (selectError) {
-      return NextResponse.json(
-        {
-          error: "Silinecek kayıtlar sorgulanamadı.",
-          detail: selectError.message ?? null,
-        },
-        { status: 500 },
-      );
-    }
-
-    const ids = ((candidates ?? []) as { id: string }[]).map((r) => r.id);
+    const ids = toDelete.map((r) => r.id);
 
     if (ids.length === 0) {
+      // Geçmiş müsaitlik ya yok, ya booked/blocked, ya appointments'a bağlı.
       return NextResponse.json(
-        { deleted: 0, today, message: "Silinecek geçmiş müsaitlik bulunamadı." },
+        {
+          today,
+          pastCount: pastAll.length,
+          openPastCount: openPast.length,
+          unbookedPastCount: unbookedPast.length,
+          deleted: 0,
+        },
         { status: 200 },
       );
     }
 
-    // 3) Toplu silme. Eğer arada appointments satırı oluşursa (race) FK
-    //    restrict kendini korur; delete hata döner — güvenli rollback yapmamak
-    //    için tek tek silmek yerine batch delete + hata kontrolü.
+    // --- Aşama 5: Toplu silme. FK on delete restrict kendini korur; race
+    //    durumunda delete hata döner (güvenli). ---
     const { error: deleteError, count: deletedCount } = await admin
       .from("availability")
       .delete({ count: "exact" })
       .in("id", ids);
 
     if (deleteError) {
+      console.log(
+        `DELETE_ERROR code=${deleteError.code ?? "YOK"} message=${deleteError.message ?? "YOK"}`,
+      );
       return NextResponse.json(
         {
           error: "Silme işlemi sırasında hata oluştu.",
           detail: deleteError.message ?? null,
           today,
+          pastCount: pastAll.length,
+          openPastCount: openPast.length,
+          unbookedPastCount: unbookedPast.length,
           candidate_count: ids.length,
         },
         { status: 500 },
       );
     }
 
+    console.log(
+      `DELETE_OK deleted=${deletedCount ?? 0} attempted=${ids.length}`,
+    );
+
     return NextResponse.json(
       {
-        deleted: deletedCount ?? 0,
         today,
+        pastCount: pastAll.length,
+        openPastCount: openPast.length,
+        unbookedPastCount: unbookedPast.length,
+        deleted: deletedCount ?? 0,
       },
       { status: 200 },
     );
   } catch (e) {
     const err = e as { message?: string } | null;
+    console.log(`EXCEPTION message=${err?.message ?? "YOK"}`);
     return NextResponse.json(
       {
         error: "Beklenmeyen hata.",
