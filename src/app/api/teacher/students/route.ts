@@ -45,15 +45,34 @@ function optionalString(value: unknown): string | null {
 }
 
 export async function GET(request: Request): Promise<Response> {
+  const TAG = "[GET /api/teacher/students]";
+  const authHeader = request.headers.get("authorization");
+  console.warn(TAG, "istek alindi");
+  console.warn(TAG, "authHeader mevcut mu:", Boolean(authHeader));
+  console.warn(
+    TAG,
+    "authHeader uzunluk:",
+    authHeader ? authHeader.length : 0,
+  );
+
   const actor = await verifyTeacherActor(request);
+  console.warn(
+    TAG,
+    "verifyTeacherActor sonucu:",
+    actor ? `OK id=${actor.id}` : "NULL",
+  );
   if (!actor) {
-    const authHeader = request.headers.get("authorization");
     if (!authHeader) {
+      console.warn(TAG, "403/401 NEDEN: authHeader yok -> 401");
       return NextResponse.json(
         { error: "Oturum bulunamadı. Lütfen giriş yapın." },
         { status: 401 },
       );
     }
+    console.warn(
+      TAG,
+      "403 NEDEN: authHeader var ama verifyTeacherActor null dondu (rol/token/profile problemi).",
+    );
     return NextResponse.json(
       { error: "Bu işlem için yetkiniz bulunmuyor." },
       { status: 403 },

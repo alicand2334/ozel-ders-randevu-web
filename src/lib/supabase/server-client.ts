@@ -218,15 +218,20 @@ export async function verifyStudentActor(
 export async function verifyTeacherActor(
   request: Request,
 ): Promise<ActorInfo | null> {
+  const TAG = "[verifyTeacherActor]";
   const authHeader = request.headers.get("authorization");
   if (!authHeader) {
+    console.warn(TAG, "1) Authorization header: YOK");
     return null;
   }
+  console.warn(TAG, "1) Authorization header: mevcut");
 
   const token = authHeader.replace(/^Bearer\s+/i, "").trim();
   if (!token) {
+    console.warn(TAG, "2) Bearer token: BOS (header var ama icerek yok)");
     return null;
   }
+  console.warn(TAG, "2) Bearer token: mevcut, uzunluk=", token.length);
 
   const authClient = createServiceClient();
   let user: { id: string; email?: string | null } | null = null;
@@ -236,11 +241,27 @@ export async function verifyTeacherActor(
       error,
     } = await authClient.auth.getUser(token);
 
-    if (error || !u) {
+    if (error) {
+      console.warn(TAG, "3) auth.getUser: HATA");
+      console.warn(TAG, "3a) code:", error.code ?? "YOK");
+      console.warn(TAG, "3b) message:", error.message ?? "YOK");
       return null;
     }
+    if (!u) {
+      console.warn(TAG, "3) auth.getUser: hata yok ama user null");
+      return null;
+    }
+    console.warn(TAG, "3) auth.getUser: basarili");
+    console.warn(TAG, "3a) user.id:", u.id ?? "YOK");
+    console.warn(TAG, "3b) user.email:", u.email ?? "YOK");
     user = u;
-  } catch {
+  } catch (e) {
+    console.warn(TAG, "3) auth.getUser: EXCEPTION firlatti");
+    const err = e as { code?: string; message?: string; details?: string; hint?: string } | null;
+    console.warn(TAG, "3x) code:", err?.code ?? "YOK");
+    console.warn(TAG, "3x) message:", err?.message ?? "YOK");
+    console.warn(TAG, "3x) details:", err?.details ?? "YOK");
+    console.warn(TAG, "3x) hint:", err?.hint ?? "YOK");
     return null;
   }
 
@@ -256,16 +277,75 @@ export async function verifyTeacherActor(
       .eq("id", user!.id)
       .maybeSingle();
 
-    if (profileError || !profile) {
+    if (profileError) {
+      console.warn(TAG, "4) profiles sorgusu: HATA");
+      console.warn(TAG, "4a) code:", profileError.code ?? "YOK");
+      console.warn(
+        TAG,
+        "4b) message:",
+        (profileError as { message?: string }).message ?? "YOK",
+      );
+      console.warn(
+        TAG,
+        "4c) details:",
+        (profileError as { details?: string }).details ?? "YOK",
+      );
+      console.warn(
+        TAG,
+        "4d) hint:",
+        (profileError as { hint?: string }).hint ?? "YOK",
+      );
       return null;
     }
+    if (!profile) {
+      console.warn(
+        TAG,
+        "4) profiles sorgusu: hata yok ama profil null (profiles tablosunda user.id",
+        user!.id,
+        "icin satir yok)",
+      );
+      return null;
+    }
+
+    console.warn(TAG, "4) profiles sorgusu: basarili");
+    console.warn(TAG, "4a) profile.role:", profile.role ?? "YOK");
+    console.warn(TAG, "4b) profile.is_active:", profile.is_active);
 
     if (profile.role !== "teacher" || profile.is_active !== true) {
+      console.warn(
+        TAG,
+        "5) ROL KONTROLU: teacher degil veya is_active degil",
+      );
+      console.warn(TAG, "5a) role:", profile.role, "(", typeof profile.role, ")");
+ 
+      console.warn(
+        TAG,
+        "5b) is_active:",
+        profile.is_active,
+        "(",
+        typeof profile.is_active,
+        ")",
+      );
       return null;
     }
 
+    console.warn(TAG, "6) OK -> teacher dogrulandi, user.id:", user!.id);
     return { id: user!.id, email: user!.email ?? null };
-  } catch {
+  } catch (e) {
+    console.warn(
+      TAG,
+      "4) profiles sorgusu: EXCEPTION firlatti -> kaynagi: dbClient.from('profiles')",
+    );
+    const err = e as {
+      code?: string;
+      message?: string;
+      details?: string;
+      hint?: string;
+    } | null;
+    console.warn(TAG, "4x) code:", err?.code ?? "YOK");
+    console.warn(TAG, "4x) message:", err?.message ?? "YOK");
+    console.warn(TAG, "4x) details:", err?.details ?? "YOK");
+    console.warn(TAG, "4x) hint:", err?.hint ?? "YOK");
     return null;
   }
 }
