@@ -65,7 +65,7 @@ export default function Home() {
         {/* Hero */}
         <section className="flex flex-1 flex-col items-center justify-center px-6 py-20 sm:px-10 sm:py-28">
           <div className="mx-auto flex w-full max-w-2xl flex-col items-center text-center">
-            <Badge>Premium Randevu Sistemi</Badge>
+            <Badge>Randevu Sistemi</Badge>
 
             <h1 className="mt-6 text-4xl font-semibold tracking-tight text-ink-text sm:text-5xl md:text-6xl">
               Özel Ders Randevu
