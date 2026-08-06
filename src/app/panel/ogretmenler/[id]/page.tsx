@@ -73,6 +73,7 @@ const LESSON_OPTIONS = [
   "Geometri",
   "Tarih",
   "Coğrafya",
+  "Koçluk Sistemi",
 ] as const;
 
 const EMPTY_BOOKING_FORM = { lesson: "", subject: "" };
