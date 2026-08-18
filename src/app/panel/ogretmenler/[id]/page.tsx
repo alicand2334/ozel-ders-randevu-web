@@ -76,7 +76,20 @@ const LESSON_OPTIONS = [
   "Koçluk Sistemi",
 ] as const;
 
-const EMPTY_BOOKING_FORM = { lesson: "", subject: "" };
+const EMPTY_BOOKING_FORM = { lesson: "", subject: "", lessonMode: "" };
+
+const LESSON_MODE_OPTIONS = [
+  { value: "online", label: "Online" },
+  { value: "in_person", label: "Yüz Yüze" },
+] as const;
+
+export type LessonModeValue = (typeof LESSON_MODE_OPTIONS)[number]["value"];
+
+function lessonModeLabel(mode: string | null | undefined): string {
+  if (mode === "online") return "Online";
+  if (mode === "in_person") return "Yüz Yüze";
+  return "Belirtilmedi";
+}
 
 export default function TeacherProfilePage() {
   const router = useRouter();
@@ -317,12 +330,17 @@ export default function TeacherProfilePage() {
 
     const lesson = bookingForm.lesson.trim();
     const subject = bookingForm.subject.trim();
+    const lessonMode = bookingForm.lessonMode.trim();
     if (!lesson) {
       setBookingError("Lütfen bir ders seçin.");
       return;
     }
     if (!subject) {
       setBookingError("Lütfen ders konusunu girin.");
+      return;
+    }
+    if (lessonMode !== "online" && lessonMode !== "in_person") {
+      setBookingError("Lütfen ders türünü seçin (Online veya Yüz Yüze).");
       return;
     }
     if (
@@ -353,6 +371,7 @@ export default function TeacherProfilePage() {
       subject,
       lesson_count: lessonCount,
       requested_start_time: requestedStartTime,
+      lesson_mode: lessonMode,
       notes: null,
     });
 
@@ -574,6 +593,46 @@ export default function TeacherProfilePage() {
               />
             </div>
 
+            <div className="mt-3 flex flex-col gap-1.5">
+              <label
+                htmlFor="booking-lesson-mode"
+                className="text-sm font-medium text-ink-text"
+              >
+                Ders Türü
+              </label>
+              <select
+                id="booking-lesson-mode"
+                value={bookingForm.lessonMode}
+                onChange={(e) => {
+                  setBookingForm((p) => ({
+                    ...p,
+                    lessonMode: e.target.value,
+                  }));
+                  setBookingError(null);
+                  setBookingSuccess(null);
+                }}
+                disabled={bookingSubmitting || !selectedSlotId}
+                className={[
+                  "w-full rounded-xl border border-line bg-ink px-3.5 py-3 text-sm text-ink-text",
+                  "transition-colors duration-200 hover:border-line-strong",
+                  "focus:border-gold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-ink focus:ring-gold/60",
+                  "min-h-11 touch-manipulation disabled:opacity-60",
+                ].join(" ")}
+              >
+                <option value="" disabled>
+                  Ders türü seçin
+                </option>
+                {LESSON_MODE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-subtle">
+                Online veya Yüz Yüze ders arasında bir seçim yapın.
+              </p>
+            </div>
+
             <div className="mt-5">
               <PrimaryButton
                 onClick={() => void handleCreateBooking()}
@@ -582,7 +641,9 @@ export default function TeacherProfilePage() {
                   !selectedSlotId ||
                   !requestedStartTime ||
                   !bookingForm.lesson ||
-                  !bookingForm.subject.trim()
+                  !bookingForm.subject.trim() ||
+                  (bookingForm.lessonMode !== "online" &&
+                    bookingForm.lessonMode !== "in_person")
                 }
                 className="w-full sm:w-auto"
               >
@@ -595,6 +656,11 @@ export default function TeacherProfilePage() {
               ) : !requestedStartTime ? (
                 <p className="mt-2 text-xs text-subtle">
                   Lütfen uygun bir başlangıç saati seçin.
+                </p>
+              ) : bookingForm.lessonMode !== "online" &&
+                bookingForm.lessonMode !== "in_person" ? (
+                <p className="mt-2 text-xs text-subtle">
+                  Lütfen ders türünü seçin (Online veya Yüz Yüze).
                 </p>
               ) : null}
             </div>
