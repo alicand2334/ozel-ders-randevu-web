@@ -5,7 +5,7 @@ const baseClasses = [
   "text-sm font-semibold tracking-wide transition-colors duration-200",
   "min-h-11 touch-manipulation select-none",
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
-  "focus-visible:ring-offset-ink disabled:cursor-not-allowed disabled:opacity-50",
+  "focus-visible:ring-offset-ink",
 ].join(" ");
 
 export type PrimaryButtonProps = {
@@ -25,9 +25,11 @@ export function PrimaryButton({
       disabled={disabled}
       className={[
         baseClasses,
-        "bg-gold text-ink hover:bg-gold-hover active:bg-gold-active",
+        disabled
+          ? "bg-gold/50 text-ink/70 cursor-not-allowed opacity-70"
+          : "bg-gold text-ink hover:bg-gold-hover active:bg-gold-active cursor-pointer",
         "focus-visible:ring-gold",
-        "disabled:hover:bg-gold disabled:active:bg-gold",
+        "focus-visible:ring-offset-ink",
         className,
       ].join(" ")}
       {...rest}

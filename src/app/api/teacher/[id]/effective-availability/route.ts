@@ -104,6 +104,7 @@ export async function GET(
       )
       .eq("teacher_id", teacherId)
       .eq("status", "open")
+      .is("deleted_at", null)
       .gte("available_date", todayKey)
       .lte("available_date", endKey);
 

@@ -43,7 +43,7 @@ const features = [
 
 function FeatureIcon({ path }: { path: React.ReactNode }) {
   return (
-    <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-gold/25 bg-gold-soft text-gold">
+    <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-yellow-500/25 bg-yellow-500/10 text-yellow-500">
       <svg
         viewBox="0 0 24 24"
         fill="none"
@@ -65,13 +65,13 @@ export default function Home() {
         {/* Hero */}
         <section className="flex flex-1 flex-col items-center justify-center px-6 py-20 sm:px-10 sm:py-28">
           <div className="mx-auto flex w-full max-w-2xl flex-col items-center text-center">
-            <Badge>Randevu Sistemi</Badge>
+            <Badge className="border-yellow-500/30 bg-yellow-500/10 text-yellow-500">Randevu Sistemi</Badge>
 
-            <h1 className="mt-6 text-4xl font-semibold tracking-tight text-ink-text sm:text-5xl md:text-6xl">
+            <h1 className="mt-6 text-4xl font-semibold tracking-tight text-foreground sm:text-5xl md:text-6xl">
               Özel Ders Randevu
             </h1>
 
-            <p className="mt-5 max-w-md text-base leading-relaxed text-muted sm:text-lg">
+            <p className="mt-5 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg">
               Ders gününü ve saatini kolayca seç.
             </p>
 
@@ -86,16 +86,16 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Öne çıkan özellikler */}
+        {/* Features */}
         <section className="px-6 pb-20 sm:px-10 sm:pb-28">
           <div className="mx-auto grid w-full max-w-5xl gap-4 sm:grid-cols-3 sm:gap-5">
             {features.map((f) => (
               <Card key={f.title} raised padding="roomy" className="h-full">
                 <FeatureIcon path={f.icon} />
-                <h3 className="mt-4 text-base font-semibold text-ink-text">
+                <h3 className="mt-4 text-base font-semibold text-foreground">
                   {f.title}
                 </h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted">
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {f.description}
                 </p>
               </Card>
@@ -104,7 +104,7 @@ export default function Home() {
         </section>
       </main>
 
-      <footer className="border-t border-line px-6 py-6 sm:px-10">
+      <footer className="border-t border-border px-6 py-6 sm:px-10">
         <p className="mx-auto max-w-5xl text-center text-xs text-subtle">
           Özel Ders Randevu &middot; Mobil öncelikli premium tasarım
         </p>

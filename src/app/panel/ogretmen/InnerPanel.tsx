@@ -68,16 +68,6 @@ type AvailabilityRow = {
 
 type FetchState = "loading" | "ready" | "error";
 
-type OgretmenInnerPanelProps = {
-  onBackToMenu: () => void;
-};
-
-const STATUS_LABEL: Record<AvailabilityRow["status"], string> = {
-  open: "Müsait",
-  booked: "Dolu",
-  blocked: "Kapalı",
-};
-
 type AppointmentStatus = "pending" | "confirmed" | "cancelled" | "completed";
 
 type AppointmentRow = {
@@ -96,6 +86,7 @@ type AppointmentRow = {
   lesson_count: number | null;
   lesson_duration_minutes: number | null;
   break_duration_minutes: number | null;
+  lesson_mode: "online" | "in_person" | null;
   slot:
     | {
         available_date: string;
@@ -147,10 +138,6 @@ function appointmentDisplayInfo(appt: AppointmentRow): {
       (lessonCount - 1) * appt.break_duration_minutes;
   }
 
-  // Eğer requested_start_time kullanılıyorsa (öğrencinin seçtiği wall-clock),
-  // end_at için timePartOfIso'yu tekrar uygulama — zaten start_at/end_at
-  // UTC'ye dönüştürülürken walls-time üzerine tekrar offset eklenmiş olabilir
-  // (çift dönüşüm). Bitişi requested_start_time + toplam süreden hesapla.
   if (appt.requested_start_time && totalDurationMinutes !== null) {
     const startMinutes = timeToMinutes(appt.requested_start_time);
     if (startMinutes !== null) {
@@ -192,7 +179,6 @@ const MONTH_LABELS_TR = [
   "Aralık",
 ] as const;
 
-/** gg.aa.yyyy formatında Türkçe gösterim için yardımcı. */
 function formatDayKeyTr(dayKey: string): string {
   const date = dateOnlyToDate(dayKey);
   if (!date) return dayKey;
@@ -248,6 +234,7 @@ type NewStudentForm = {
   email: string;
   temporary_password: string;
   phone: string;
+  bio: string;
 };
 
 type CreateStudentResponse = {
@@ -270,10 +257,10 @@ type AvailabilityForm = {
 
 const EMPTY_FORM: AvailabilityForm = {
   date: "",
-  startHour: "",
-  startMin: "",
-  endHour: "",
-  endMin: "",
+  startHour: "00",
+  startMin: "00",
+  endHour: "00",
+  endMin: "00",
   repeatWeekly: false,
 };
 
@@ -301,9 +288,10 @@ const EMPTY_STUDENT_FORM: NewStudentForm = {
   email: "",
   temporary_password: "",
   phone: "",
+  bio: "",
 };
 
-export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelProps) {
+export default function OgretmenPanelPage() {
   const router = useRouter();
   const { session, user, loading } = useAuth();
   const [roleLoading, setRoleLoading] = useState(true);
@@ -320,6 +308,8 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
   const [slotActionId, setSlotActionId] = useState<string | null>(null);
   const [slotActionError, setSlotActionError] = useState<string | null>(null);
   const [slotActionSuccess, setSlotActionSuccess] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const [deleteConfirmSeriesId, setDeleteConfirmSeriesId] = useState<string | null>(null);
 
   const [appointments, setAppointments] = useState<AppointmentRow[]>([]);
   const [apptState, setApptState] = useState<FetchState>("loading");
@@ -328,6 +318,38 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
   const [apptActionError, setApptActionError] = useState<string | null>(null);
   const [apptCalendarId, setApptCalendarId] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState<number>(0);
+
+  const [activeApptTab, setActiveApptTab] = useState<"pending" | "completed" | "cancelled">("pending");
+
+  const pendingAppointments = useMemo(
+    () => appointments.filter((a) => a.status === "pending"),
+    [appointments],
+  );
+  const completedAppointments = useMemo(
+    () => appointments.filter((a) => a.status === "completed"),
+    [appointments],
+  );
+  const cancelledAppointments = useMemo(
+    () => appointments.filter((a) => a.status === "cancelled"),
+    [appointments],
+  );
+
+  const pendingCount = pendingAppointments.length;
+  const completedCount = completedAppointments.length;
+  const cancelledCount = cancelledAppointments.length;
+
+  const filteredAppointments = useMemo(() => {
+    switch (activeApptTab) {
+      case "pending":
+        return pendingAppointments;
+      case "completed":
+        return completedAppointments;
+      case "cancelled":
+        return cancelledAppointments;
+      default:
+        return [];
+    }
+  }, [activeApptTab, pendingAppointments, completedAppointments, cancelledAppointments]);
 
   const todayReference = useMemo(() => new Date(), []);
   const todayStartMs = useMemo(
@@ -510,6 +532,41 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
     };
   }, [studentModalOpen]);
 
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 10000);
+    return () => {
+      window.clearTimeout(id);
+    };
+  }, [toast]);
+
+  // Auto-dismiss slotActionSuccess after 10 seconds
+  useEffect(() => {
+    if (!slotActionSuccess) return;
+    const id = window.setTimeout(() => setSlotActionSuccess(null), 10000);
+    return () => {
+      window.clearTimeout(id);
+    };
+  }, [slotActionSuccess]);
+
+  // Auto-dismiss slotActionError after 10 seconds
+  useEffect(() => {
+    if (!slotActionError) return;
+    const id = window.setTimeout(() => setSlotActionError(null), 10000);
+    return () => {
+      window.clearTimeout(id);
+    };
+  }, [slotActionError]);
+
+  // Auto-dismiss apptActionError after 10 seconds
+  useEffect(() => {
+    if (!apptActionError) return;
+    const id = window.setTimeout(() => setApptActionError(null), 10000);
+    return () => {
+      window.clearTimeout(id);
+    };
+  }, [apptActionError]);
+
   function handleStudentFieldChange(
     e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) {
@@ -641,19 +698,15 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
   const fetchSlots = useCallback(async (uid: string) => {
     setState("loading");
     setErrorMsg(null);
-    // Öğretmen takviminde yalnızca bugün ve sonrası (Europe/Istanbul) göster.
-    // Geçmiş slot'lar veritabanından silinmez (cron ile ilişkisiz open
-    // satırları silinir; appointments'a bağlılar korunur), yalnızca bu
-    // listelemede gizlenir — geçmiş randevular fetchAppointments'ta ayrı
-    // gelir ve dokunulmaz.
     const todayKey = istanbulTodayKey();
     const { data, error } = await supabase
       .from("availability")
       .select(
-        "id, available_date, start_time, end_time, status, series_id, recurrence_rule, recurrence_end_date, source_date",
+        "id, available_date, start_time, end_time, status, series_id, recurrence_rule, recurrence_end_date, source_date, teacher_id",
       )
       .eq("teacher_id", uid)
       .gte("available_date", todayKey)
+      .is("deleted_at", null)
       .order("available_date", { ascending: true })
       .order("start_time", { ascending: true });
     if (error) {
@@ -719,12 +772,6 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
     setStudentsError(null);
 
     try {
-      // Access token'ı önce AuthProvider'ın context'inden al. Mobil bazı
-      // tarayıcılarda supabase.auth.getSession() çağrısı sessiz token refresh
-      // sırasında null dönebilir ve bu da API'ye Bearer gönderilememesine /
-      // 403 "yetkiniz yok" hatasına yol açar. Context'teki session ise
-      // onAuthStateChange ile sürekli günceldir; bunu öncelikli kullan, yoksa
-      // getSession() ile fallback dene.
       let accessToken: string | null = session?.access_token ?? null;
       if (!accessToken) {
         const { data: sessionData } = await supabase.auth.getSession();
@@ -892,9 +939,6 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
     };
   }, [allowed, user, fetchSlots, fetchAppointments]);
 
-  // Müsaitlikleri "Haftalık Tekrarlar" ve "Tek Seferlik Müsaitlikler" olarak
-  // ayırmak için client-side gruplama. Aynı series_id + start/end + hafta günü
-  // olan tekrarlar tek bir satırda gösterilir (kural 2/3/10).
   const { seriesGroups, singles } = useMemo(() => {
     const groups = new Map<string, AvailabilityRow[]>();
     const singleSlots: AvailabilityRow[] = [];
@@ -911,17 +955,13 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
       arr.push(slot);
       groups.set(key, arr);
     }
-    // Her grup için sıralı tut (slots zaten available_date ascending).
     const seriesGroupsArr = Array.from(groups.entries()).map(
       ([key, groupSlots]) => {
         const first = groupSlots[0];
         const todayKey = istanbulTodayKey();
-        // Temsilci slot: bugünden itibaren ilk occurrence; yoksa en eski.
         const upcoming =
           groupSlots.find((s) => s.available_date >= todayKey) ??
           groupSlots[0];
-        // "Bu Haftayı İptal Et": bugünün haftasındaki ilgili gün.
-        // Kural 4: hedef gün geçmişte ise kayıt üretme → cancelSlot = null.
         const wd = weekdayIndexOf(first.source_date ?? first.available_date);
         let cancelSlot: AvailabilityRow | null = null;
         if (wd !== null) {
@@ -932,8 +972,6 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
               groupSlots.find((s) => s.available_date === targetKey) ?? null;
           }
         }
-        // Grup durumu: eğer tüm occurrence'lar aynı durumdaysa onu göster,
-        // değilse "Müsait" kabul et (ilk open olanı ara, yoksa ilk slot).
         const statusOrder: AvailabilityRow["status"][] = [
           "open",
           "booked",
@@ -988,57 +1026,87 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
     await fetchAppointments(user.id);
   }
 
-  // Müsaitlik silme: tek seferlik kayıtta yalnız o satırı siler; haftalık
-  // tekrar kaydında tüm seriyi (series_id) siler. booked'lar RLS tarafından
-  // silinemez (IDARE et: appointments silinince availability.status tekrar
-  // open'a dönmüyor — bu zaten mevcut davranış).
-  async function handleDeleteSlot(slot: AvailabilityRow) {
+  async function handleDeleteSlot(slot: AvailabilityRow, confirmed = false) {
     if (!user) return;
-    setSlotActionId(slot.id);
-    setSlotActionError(null);
 
     const isSeries = Boolean(slot.recurrence_rule === "WEEKLY" && slot.series_id);
 
-    let deleteQuery;
-    if (isSeries) {
-      // Tüm seriyi sil.
-      deleteQuery = supabase
-        .from("availability")
-        .delete()
-        .eq("teacher_id", user.id)
-        .eq("series_id", slot.series_id!);
-    } else {
-      deleteQuery = supabase
-        .from("availability")
-        .delete()
-        .eq("teacher_id", user.id)
-        .eq("id", slot.id);
-    }
-
-    const { error } = await deleteQuery;
-    setSlotActionId(null);
-
-    if (error) {
-      setSlotActionError(
-        isSeries
-          ? "Haftalık tekrar silinemedi: " + (error.message ?? "Bilinmeyen hata")
-          : "Müsaitlik silinemedi: " + (error.message ?? "Bilinmeyen hata"),
-      );
+    if (isSeries && !confirmed) {
+      setDeleteConfirmSeriesId(slot.series_id!);
       return;
     }
 
-    await fetchSlots(user.id);
+    setSlotActionId(slot.id);
+    setSlotActionError(null);
+    setSlotActionSuccess(null);
+    setDeleteConfirmSeriesId(null);
+    setToast(null);
+    setApptActionError(null);
+
+    try {
+      let result: { success: boolean; error?: string; message?: string; error_code?: string };
+
+      if (isSeries) {
+        const { data, error } = await supabase.rpc("delete_availability_series", {
+          p_series_id: slot.series_id!,
+          p_teacher_id: user.id,
+        });
+
+        if (error) throw error;
+        result = data as typeof result;
+      } else {
+        const { data, error } = await supabase.rpc("delete_availability_slot", {
+          p_slot_id: slot.id,
+          p_teacher_id: user.id,
+        });
+
+        if (error) throw error;
+        result = data as typeof result;
+      }
+
+      setSlotActionId(null);
+
+      if (!result.success) {
+        const errMsg = result.error ?? "Bilinmeyen hata";
+        setSlotActionError(
+          isSeries
+            ? "Haftalık tekrar silinemedi: " + errMsg
+            : "Müsaitlik silinemedi: " + errMsg,
+        );
+        setToast("Silme işlemi başarısız: " + errMsg);
+        return;
+      }
+
+      setSlotActionSuccess(
+        isSeries
+          ? "Haftalık tekrar serisi başarıyla silindi."
+          : "Müsaitlik başarıyla silindi.",
+      );
+      setToast(
+        isSeries
+          ? "Haftalık tekrar serisi başarıyla silindi."
+          : "Müsaitlik başarıyla silindi.",
+      );
+      await fetchSlots(user.id);
+    } catch (error: unknown) {
+      setSlotActionId(null);
+      const errMsg = error instanceof Error ? error.message : typeof error === "string" ? error : JSON.stringify(error);
+      setSlotActionError(
+        isSeries
+          ? "Haftalık tekrar silinemedi: " + errMsg
+          : "Müsaitlik silinemedi: " + errMsg,
+      );
+      setToast("Silme işlemi başarısız: " + errMsg);
+    }
   }
 
-  // Belirli bir günü iptal et: haftalık tekrar serisinde sadece o occurrence'ı
-  // kapat. availability_overrides tablosuna action='cancel' satırı ekler.
-  // Tek seferlik kayıtlar için bu fonksiyon kullanılmaz (kullanıcı doğrudan
-  // sil butonunu kullanır).
   async function handleCancelSlotDay(slot: AvailabilityRow) {
     if (!user) return;
     setSlotActionId(slot.id);
     setSlotActionError(null);
     setSlotActionSuccess(null);
+    setToast(null);
+    setApptActionError(null);
 
     const { error } = await supabase
       .from("availability_overrides")
@@ -1075,6 +1143,9 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
     if (!user) return;
     setApptActionId(appt.id);
     setApptActionError(null);
+    setSlotActionError(null);
+    setSlotActionSuccess(null);
+    setToast(null);
 
     const { error } = await supabase
       .from("appointments")
@@ -1092,7 +1163,8 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
     await fetchSlots(user.id);
   }
 
-  function updateField(field: keyof typeof EMPTY_FORM, value: string) {
+  function updateField(field: string, value: string) {
+    console.log("[TurkishDatePicker] onChange/updateField", { field, value, formDate: form.date });
     setForm((p) => ({ ...p, [field]: value }));
     setFormErrors((p) => ({ ...p, [field]: "" }));
     setSubmitError(null);
@@ -1132,9 +1204,11 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
 
     setSubmitting(true);
     setSubmitError(null);
+    setSlotActionError(null);
+    setSlotActionSuccess(null);
+    setApptActionError(null);
+    setToast(null);
 
-    // Geçmiş tarih kontrolü: datepicker minDayKey=istanbulTodayKey() ile
-    // kısıtlasa da savunma amaçlı tekrar doğrula.
     const todayKey = istanbulTodayKey();
     if (form.date < todayKey) {
       setSubmitting(false);
@@ -1143,24 +1217,18 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
     }
 
     if (form.repeatWeekly) {
-      // Haftalık tekrar: başlangıç tarihinden (form.date) itibaren her 7
-      // günde bir occurrence üret. Başlangıç haftası dahil toplam 52 tekrar
-      // için bitiş, başlangıçtan 51 hafta (357 gün) sonrası olarak ayarlanır.
-      // recurrence_end_date CHECK constraint (>='available_date') korunur.
       const seriesId = crypto.randomUUID();
       const recurrenceEndDate = istanbulDayKeyFromDate(
         addDays(dateOnlyToDate(form.date)!, 7 * 51),
       );
 
-      // Haftalık tekrar çakışma kontrolü: aynı öğretmenin, aynı haftanın
-      // gününde, çakışan saatte serisi varsa engelle. Bunun için tüm
-      // availability'i öğretmen için çekip JS tarafında çakışma test yapar.
       const { data: allSlots, error: fetchError } = await supabase
         .from("availability")
         .select(
           "id, available_date, start_time, end_time, status, series_id, recurrence_rule",
         )
-        .eq("teacher_id", user.id);
+        .eq("teacher_id", user.id)
+        .is("deleted_at", null);
       if (fetchError) {
         setSubmitting(false);
         setSubmitError(
@@ -1171,9 +1239,6 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
       }
 
       const allRows = (allSlots ?? []) as AvailabilityRow[];
-      // Üretilecek occurrence tarihlerini hazırla. Başlangıç tarihinden
-      // (form.date) itibaren her 7 gün, recurrence_end_date'e kadar. Başlangıç
-      // haftası dahil toplam 52 occurrence (~52 satır).
       const occurrences: string[] = [];
       const base = dateOnlyToDate(form.date);
       if (!base) {
@@ -1190,12 +1255,6 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
         occurrences.push(istanbulDayKeyFromDate(d));
       }
 
-      // Çakışma testi: çakışma yalnızca "aynı takvim gününde" ve "çakışan
-      // saatte" olabilir. Haftalık seriler farklı günlerde olduğu için
-      // oluşumları çakışmaz. Tek seferlik kayıtlar da yalnızca aynı gün-
-      // lerde çakışır. Bu yüzden her occurrence'ı mevcut tüm satırlarla
-      // test etmek yeterli (N*M küçük çünkü gün sayısı N ~52, M mevcut
-      // satır sayısı küçük).
       for (const occDate of occurrences) {
         const clash = allRows.find(
           (slot) =>
@@ -1243,12 +1302,12 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
       return;
     }
 
-    // Tek seferlik müsaitlik (mevcut davranış).
     const { data: existingSlots, error: fetchError } = await supabase
       .from("availability")
       .select("id, available_date, start_time, end_time, status")
       .eq("teacher_id", user.id)
-      .eq("available_date", form.date);
+      .eq("available_date", form.date)
+      .is("deleted_at", null);
     if (fetchError) {
       setSubmitting(false);
       setSubmitError(
@@ -1276,6 +1335,7 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
       start_time: startTime,
       end_time: endTime,
       status: "open",
+      source_date: form.date,
     });
 
     setSubmitting(false);
@@ -1291,13 +1351,8 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
   }
 
   return (
-    <main
-      className="flex min-h-dvh flex-col items-center px-6 py-16 sm:px-10"
-      data-unread-notifications={unreadCount}
-      data-notifications-loading={notificationsLoading}
-      data-notifications-error={notificationsError ?? ""}
-    >
-      <div className="w-full max-w-2xl">
+    <main className="flex min-h-dvh flex-col px-6 py-8 sm:px-10">
+      <div className="w-full max-w-4xl mx-auto space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <SectionTitle
             align="left"
@@ -1315,7 +1370,7 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
               aria-expanded={isNotificationsOpen}
               aria-haspopup="true"
               onClick={() => setIsNotificationsOpen((p) => !p)}
-              className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center self-start rounded-xl border border-line bg-ink text-ink-text transition-colors duration-200 hover:border-line-strong focus:border-gold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-ink focus:ring-gold/60"
+              className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center self-start rounded-xl border border-border bg-surface text-foreground transition-colors duration-200 hover:border-yellow-500/50 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background focus:ring-yellow-500/60"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -1342,14 +1397,14 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
               <div
                 role="dialog"
                 aria-label="Bildirimler"
-                className="fixed left-4 right-4 top-20 z-50 sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-[360px] sm:max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl shadow-ink-deep/40 backdrop-blur-sm"
+                className="fixed left-4 right-4 top-20 z-50 sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-[360px] sm:max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl shadow-black/40 backdrop-blur-sm"
               >
-                <div className="flex items-center justify-between gap-3 border-b border-line bg-ink/60 px-4 py-3">
-                  <h2 className="text-sm font-semibold tracking-tight text-ink-text">
+                <div className="flex items-center justify-between gap-3 border-b border-border bg-surface/60 px-4 py-3">
+                  <h2 className="text-sm font-semibold tracking-tight text-foreground">
                     Bildirimler
                   </h2>
                   {unreadCount > 0 ? (
-                    <span className="inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-gold-soft px-2 py-0.5 text-xs font-semibold text-gold">
+                    <span className="inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-yellow-500/20 px-2 py-0.5 text-xs font-semibold text-yellow-500">
                       {unreadCount}
                     </span>
                   ) : null}
@@ -1357,22 +1412,22 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
 
                 <div className="max-h-[60vh] overflow-y-auto sm:max-h-[420px]">
                   {notificationsLoading ? (
-                    <p className="px-4 py-6 text-sm text-muted">
+                    <p className="px-4 py-6 text-sm text-muted-foreground">
                       Bildirimler yükleniyor...
                     </p>
                   ) : notificationsError ? (
                     <p
                       role="alert"
-                      className="px-4 py-4 text-sm text-red-300"
+                      className="px-4 py-4 text-sm text-red-400"
                     >
                       {notificationsError}
                     </p>
                   ) : notifications.length === 0 ? (
-                    <p className="px-4 py-6 text-sm leading-relaxed text-muted">
+                    <p className="px-4 py-6 text-sm leading-relaxed text-muted-foreground">
                       Henüz bildiriminiz yok.
                     </p>
                   ) : (
-                    <ul className="divide-y divide-line">
+                    <ul className="divide-y divide-border">
                       {notifications.map((n) => (
                         <li
                           key={n.id}
@@ -1382,13 +1437,13 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
                             aria-hidden="true"
                             className={[
                               "mt-1.5 h-2 w-2 shrink-0 rounded-full",
-                              n.ok ? "bg-subtle" : "bg-gold",
+                              n.ok ? "bg-subtle" : "bg-yellow-500",
                             ].join(" ")}
                           />
                           <div className="flex flex-1 flex-col gap-0.5">
                             <span
                               className={[
-                                "text-sm text-ink-text",
+                                "text-sm text-foreground",
                                 n.ok
                                   ? "font-normal"
                                   : "font-semibold",
@@ -1397,7 +1452,7 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
                               {n.title?.trim() || "Bildirim"}
                             </span>
                             {n.body && n.body.trim() ? (
-                              <span className="text-xs leading-relaxed text-muted">
+                              <span className="text-xs leading-relaxed text-muted-foreground">
                                 {n.body.trim()}
                               </span>
                             ) : null}
@@ -1415,13 +1470,13 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
           </div>
         </div>
 
-        <Card className="mt-6 sm:mt-8" padding="roomy" raised>
+        <Card className="overflow-hidden" padding="snug">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col gap-1">
-              <h2 className="text-base font-semibold tracking-tight text-ink-text">
+              <h2 className="text-base font-semibold tracking-tight text-foreground">
                 Öğrenci Yönetimi
               </h2>
-              <p className="text-xs leading-relaxed text-subtle">
+              <p className="text-xs leading-relaxed text-muted-foreground">
                 Sisteme yeni öğrenci hesabı ekleyin.
               </p>
             </div>
@@ -1434,9 +1489,9 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
           </div>
         </Card>
 
-        <Card className="mt-6" padding="roomy" raised>
+        <Card className="overflow-hidden" padding="snug">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold tracking-tight text-ink-text">
+            <h2 className="text-base font-semibold tracking-tight text-foreground">
               Öğrencilerim
             </h2>
             {studentsState === "ready" ? (
@@ -1446,32 +1501,32 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
 
           <div className="mt-5">
             {studentsState === "loading" ? (
-              <p className="text-sm text-muted">Öğrenciler yükleniyor…</p>
+              <p className="text-sm text-muted-foreground text-center py-8">Öğrenciler yükleniyor…</p>
             ) : studentsState === "error" ? (
               <p
                 role="alert"
-                className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
+                className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
               >
                 {studentsError ?? "Öğrenci listesi yüklenemedi."}
               </p>
             ) : students.length === 0 ? (
-              <p className="text-sm leading-relaxed text-muted">
+              <p className="text-sm leading-relaxed text-muted-foreground text-center py-8">
                 Henüz bağlı öğrenciniz yok.
               </p>
             ) : (
-              <ul className="divide-y divide-line">
+              <ul className="divide-y divide-border">
                 {students.map((s) => (
                   <li key={s.id}>
                     <Link
                       href={`/panel/ogretmen/ogrenciler/${s.id}`}
-                      className="-mx-3 flex cursor-pointer flex-col gap-1 rounded-lg px-3 py-3 transition-colors hover:bg-surface-raised sm:flex-row sm:items-center sm:justify-between"
+                      className="flex cursor-pointer flex-col gap-1 rounded-lg px-3 py-3 transition-colors hover:bg-surface/50 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-medium text-ink-text">
+                        <span className="text-sm font-medium text-foreground">
                           {s.full_name?.trim() || "Belirtilmedi"}
                         </span>
                         {s.phone?.trim() ? (
-                          <span className="text-xs text-muted">
+                          <span className="text-xs text-muted-foreground">
                             {s.phone.trim()}
                           </span>
                         ) : null}
@@ -1487,11 +1542,9 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
           </div>
         </Card>
 
-        <Card className="mt-8" padding="roomy" raised>
-          <h2 className="text-base font-semibold tracking-tight text-ink-text">
-            Yeni Müsaitlik Ekle
-          </h2>
-          <p className="mt-1.5 text-xs leading-relaxed text-subtle">
+        <Card className="overflow-visible" padding="snug">
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">Yeni Müsaitlik Ekle</h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
             Tarih ve saat aralığını girin. Aynı tarih ve saatlerde tekrar ekleyemezsiniz.
           </p>
 
@@ -1547,20 +1600,20 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
 
           <label
             htmlFor="repeat-weekly"
-            className="mt-4 flex items-start gap-3 rounded-2xl border border-line bg-ink/40 p-4 cursor-pointer transition-colors duration-200 hover:border-line-strong"
+            className="mt-4 flex items-start gap-3 rounded-2xl border border-border bg-surface/50 p-4 cursor-pointer transition-colors duration-200 hover:border-yellow-500/50"
           >
             <input
               id="repeat-weekly"
               type="checkbox"
               checked={form.repeatWeekly}
               onChange={(e) => updateRepeatWeekly(e.target.checked)}
-              className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-[var(--color-gold,#d4af37)]"
+              className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-yellow-500"
             />
             <span className="flex flex-col gap-0.5">
-              <span className="text-sm font-medium text-ink-text">
+              <span className="text-sm font-medium text-foreground">
                 Her hafta aynı gün ve saatte tekrarla
               </span>
-              <span className="text-xs leading-relaxed text-muted">
+              <span className="text-xs leading-relaxed text-muted-foreground">
                 Seçilen gün ve saat, siz kaldırana kadar her hafta tekrarlanır.
               </span>
             </span>
@@ -1569,7 +1622,7 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
           {submitError ? (
             <p
               role="alert"
-              className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
+              className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
             >
               {submitError}
             </p>
@@ -1593,1260 +1646,751 @@ export default function OgretmenPanelPage({ onBackToMenu }: OgretmenInnerPanelPr
           </div>
         </Card>
 
-        <Card className="mt-6" padding="roomy" raised>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+<Card className="overflow-hidden" padding="snug">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col gap-1">
-              <h2 className="text-base font-semibold tracking-tight text-ink-text">
+              <h2 className="text-base font-semibold tracking-tight text-foreground">
                 Haftalık Takvim
               </h2>
-              <p className="text-xs leading-relaxed text-subtle">
+              <p className="text-xs leading-relaxed text-muted-foreground">
                 {formatCalendarWeekRange(weekStart, addDays(weekStart, 6))}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <SecondaryButton
-                onClick={() => setWeekOffset((w) => w - 1)}
-                className="w-auto"
+                onClick={() => setWeekOffset((o) => o - 1)}
+                className="px-3 py-1.5 text-xs sm:px-4 sm:py-2"
                 aria-label="Önceki hafta"
               >
-                ‹
+                ‹ Önceki
               </SecondaryButton>
               <SecondaryButton
                 onClick={() => setWeekOffset(0)}
-                disabled={weekOffset === 0}
-                className="w-auto"
+                className="px-3 py-1.5 text-xs sm:px-4 sm:py-2"
+                aria-label="Bu hafta"
               >
                 Bugün
               </SecondaryButton>
               <SecondaryButton
-                onClick={() => setWeekOffset((w) => w + 1)}
-                className="w-auto"
+                onClick={() => setWeekOffset((o) => o + 1)}
+                className="px-3 py-1.5 text-xs sm:px-4 sm:py-2"
                 aria-label="Sonraki hafta"
               >
-                ›
+                Sonraki ›
               </SecondaryButton>
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-subtle">
-            <span className="inline-flex items-center gap-1.5">
-              <span
-                aria-hidden="true"
-                className="h-2.5 w-2.5 rounded-sm border border-gold/40 bg-gold/15"
-              />
-              Müsait
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span
-                aria-hidden="true"
-                className="h-2.5 w-2.5 rounded-sm border border-sky-500/40 bg-sky-500/15"
-              />
-              Onaylandı
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span
-                aria-hidden="true"
-                className="h-2.5 w-2.5 rounded-sm border border-gold/60 bg-gold/25"
-              />
-              Beklemede
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span
-                aria-hidden="true"
-                className="h-2.5 w-2.5 rounded-sm border border-emerald-500/40 bg-emerald-500/15"
-              />
-              Tamamlandı
-            </span>
-            <span className="inline-flex items-center gap-1.5">
-              <span
-                aria-hidden="true"
-                className="h-2.5 w-2.5 rounded-sm border border-red-500/40 bg-red-500/15"
-              />
-              İptal Edildi
-            </span>
-          </div>
-
-          <div className="mt-5 overflow-x-auto pb-2">
-            <div className="min-w-[760px]">
-              <div
-                className="grid gap-px"
-                style={{
-                  gridTemplateColumns: `48px repeat(7, minmax(0, 1fr))`,
-                }}
-              >
-                <div className="sticky left-0 z-10 bg-surface" />
-                {weekDays.map((dayKey, i) => {
-                  const today = isTodayKey(dayKey);
-                  return (
-                    <div
-                      key={dayKey}
-                      className="px-2 pb-1 text-center"
-                    >
-                      <div className="text-xs font-semibold text-ink-text">
-                        {WEEKDAY_LABELS[i]}
-                      </div>
-                      <div
-                        className={[
-                          "mt-0.5 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-xs",
-                          today
-                            ? "bg-gold text-ink font-semibold"
-                            : "text-muted",
-                        ].join(" ")}
-                      >
-                        {formatCalendarDay(dayKey)}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {CALENDAR_HOURS.map((hour) => (
-                  <CalendarHourRow
-                    key={hour}
-                    hour={hour}
-                    weekDays={weekDays}
-                    blocksByDay={blocksByDay}
-                    selectedCalendarApptId={apptCalendarId}
-                    onSelectAppt={setApptCalendarId}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {selectedCalendarAppt ? (
-            <div className="mt-5 rounded-2xl border border-line bg-ink/40 p-4">
-              <div className="flex flex-col gap-1">
-                <span className="text-xs text-muted">
-                  {selectedCalendarAppt.student_name?.trim() ||
-                    "Bilinmeyen Öğrenci"}
-                </span>
-                {selectedCalendarAppt.lesson ? (
-                  <span className="text-xs text-muted">
-                    Ders: {selectedCalendarAppt.lesson}
-                  </span>
-                ) : null}
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-ink-text">
-                    Konu:{" "}
-                    {selectedCalendarAppt.subject?.trim() || "Belirtilmedi"}
-                  </span>
-                  <Badge
-                    tone={APPT_STATUS_CALENDAR_TONE[selectedCalendarAppt.status]}
-                  >
-                    {APPT_STATUS_LABEL[selectedCalendarAppt.status]}
-                  </Badge>
-                </div>
-                <span className="text-xs text-muted">
-                  {(() => {
-                    const info = appointmentDisplayInfo(selectedCalendarAppt);
-                    const date = info.date ? formatDateLong(info.date) : null;
-                    const start = info.startTime
-                      ? formatTime(info.startTime)
-                      : null;
-                    const end = info.endTime
-                      ? formatTime(info.endTime)
-                      : null;
-                    const pieces: string[] = [];
-                    if (date) pieces.push(date);
-                    if (start && end) pieces.push(`${start} – ${end}`);
-                    else if (start) pieces.push(`${start} – ?`);
-                    if (info.lessonCount)
-                      pieces.push(`${info.lessonCount} ders`);
-                    if (info.totalDurationMinutes)
-                      pieces.push(formatDuration(info.totalDurationMinutes));
-                    return pieces.length > 0
-                      ? pieces.join(" · ")
-                      : "Randevu bilgisi eksik";
-                  })()}
-                </span>
-                {selectedCalendarAppt.notes &&
-                selectedCalendarAppt.notes.trim() ? (
-                  <span className="mt-1 text-xs leading-relaxed text-subtle">
-                    Not: {selectedCalendarAppt.notes.trim()}
-                  </span>
-                ) : null}
-              </div>
-
-              {apptActionError ? (
-                <p
-                  role="alert"
-                  className="mt-3 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-                >
-                  {apptActionError}
-                </p>
-              ) : null}
-
-              {selectedCalendarAppt.status === "pending" ? (
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                  <PrimaryButton
-                    onClick={() => {
-                      void updateAppointmentStatus(
-                        selectedCalendarAppt,
-                        "confirmed",
-                      );
-                    }}
-                    disabled={apptActionId === selectedCalendarAppt.id}
-                    className="w-full sm:w-auto"
-                  >
-                    {apptActionId === selectedCalendarAppt.id
-                      ? "İşleniyor..."
-                      : "Onayla"}
-                  </PrimaryButton>
-                  <SecondaryButton
-                    onClick={() => {
-                      void updateAppointmentStatus(
-                        selectedCalendarAppt,
-                        "cancelled",
-                      );
-                    }}
-                    disabled={apptActionId === selectedCalendarAppt.id}
-                    className="w-full sm:w-auto"
-                  >
-                    Reddet
-                  </SecondaryButton>
-                </div>
-              ) : null}
-
-              {selectedCalendarAppt.status === "confirmed" ? (
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                  <PrimaryButton
-                    onClick={() => {
-                      void updateAppointmentStatus(
-                        selectedCalendarAppt,
-                        "completed",
-                      );
-                    }}
-                    disabled={apptActionId === selectedCalendarAppt.id}
-                    className="w-full sm:w-auto"
-                  >
-                    {apptActionId === selectedCalendarAppt.id
-                      ? "İşleniyor..."
-                      : "Tamamlandı Olarak İşaretle"}
-                  </PrimaryButton>
-                  <SecondaryButton
-                    onClick={() => {
-                      void updateAppointmentStatus(
-                        selectedCalendarAppt,
-                        "cancelled",
-                      );
-                    }}
-                    disabled={apptActionId === selectedCalendarAppt.id}
-                    className="w-full sm:w-auto"
-                  >
-                    İptal Et
-                  </SecondaryButton>
-                </div>
-              ) : null}
-
-              <div className="mt-3">
-                <button
-                  type="button"
-                  onClick={() => setApptCalendarId(null)}
-                  className="text-xs text-muted underline-offset-2 hover:text-ink-text hover:underline"
-                >
-                  Kapat
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </Card>
-
-        <Card className="mt-6" padding="roomy" raised>
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold tracking-tight text-ink-text">
-              Müsaitliklerim
-            </h2>
-            {state === "ready" ? (
-              <Badge tone="neutral">{slots.length} kayıt</Badge>
-            ) : null}
-          </div>
-
           <div className="mt-5">
-            {state === "loading" ? (
-              <p className="text-sm text-muted">Yükleniyor...</p>
-            ) : state === "error" ? (
-              <div className="flex flex-col gap-3">
-                <p
-                  role="alert"
-                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-                >
-                  Müsaitlikler yüklenemedi: {errorMsg ?? "Bilinmeyen hata"}
-                </p>
-                <SecondaryButton onClick={handleRetry} className="w-full sm:w-auto">
-                  Tekrar Dene
-                </SecondaryButton>
-              </div>
-            ) : slots.length === 0 ? (
-              <p className="text-sm leading-relaxed text-muted">
-                Henüz müsaitlik kaydınız yok. Saatlerinizi eklediğinizde burada
-                listelenecek.
-              </p>
-            ) : (
-              <>
-                {/* A) Haftalık Tekrarlar — aynı series_id'ye göre gruplanmış,
-                    her seri tek satır olarak gösterilir. */}
-                <section className="mb-6">
-                  <h3 className="mb-2 text-sm font-semibold tracking-tight text-ink-text">
-                    Haftalık Tekrarlar
-                  </h3>
-                  {seriesGroups.length === 0 ? (
-                    <p className="text-xs leading-relaxed text-muted">
-                      Henüz haftalık tekrarınız yok.
-                    </p>
-                  ) : (
-                    <ul className="divide-y divide-line rounded-xl border border-line">
-                      {seriesGroups.map((group) => {
-                        const rep = group.repSlot;
-                        const isBusy = slotActionId === rep.id;
-                        const canCancel = Boolean(group.cancelSlot);
-                        const cancelBusy =
-                          canCancel &&
-                          slotActionId === group.cancelSlot!.id;
-                        return (
-                          <li
-                            key={group.key}
-                            className="flex flex-col gap-2.5 py-3 sm:flex-row sm:items-center sm:justify-between"
-                          >
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-sm font-medium text-ink-text">
-                                {slotKindLabel(rep)}
-                              </span>
-                              <span className="text-xs text-muted">
-                                {formatTime(rep.start_time)} –{" "}
-                                {formatTime(rep.end_time)}
-                              </span>
-                              {group.count > 1 ? (
-                                <span className="text-xs text-subtle">
-                                  {group.count} haftalık tekrar
-                                </span>
-                              ) : null}
-                            </div>
-                            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                              <Badge
-                                tone={toneFor(group.groupStatus)}
-                                className="self-start"
-                              >
-                                {STATUS_LABEL[group.groupStatus]}
-                              </Badge>
-                              {group.groupStatus === "open" ? (
-                                <>
-                                  <SecondaryButton
-                                    onClick={() => handleDeleteSlot(rep)}
-                                    disabled={isBusy}
-                                    className="w-full sm:w-auto px-3 py-1.5 text-xs"
-                                    aria-label="Haftalık tekrarı kaldır"
-                                  >
-                                    {isBusy ? "..." : "Tüm Seriyi Sil"}
-                                  </SecondaryButton>
-                                  <SecondaryButton
-                                    onClick={() =>
-                                      handleCancelSlotDay(group.cancelSlot!)
-                                    }
-                                    disabled={!canCancel || cancelBusy}
-                                    className="w-full sm:w-auto px-3 py-1.5 text-xs"
-                                    aria-label="Bu haftanın ilgili gününü iptal et"
-                                  >
-                                    {cancelBusy
-                                      ? "..."
-                                      : "Bu Haftayı İptal Et"}
-                                  </SecondaryButton>
-                                </>
-                              ) : null}
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </section>
+            <div className="grid gap-2 sm:grid-cols-7 overflow-x-auto sm:overflow-visible pb-2 sm:pb-0">
+              {weekDays.map((dayKey, idx) => {
+                const isToday = isTodayKey(dayKey);
+                const dayDate = dateOnlyToDate(dayKey);
+                const dayNum = dayDate
+                  ? Number(new Intl.DateTimeFormat("tr-TR", {
+                      timeZone: "Europe/Istanbul",
+                      day: "numeric",
+                    }).format(dayDate))
+                  : idx + 1;
+                const dayShort = dayDate
+                  ? new Intl.DateTimeFormat("tr-TR", {
+                      timeZone: "Europe/Istanbul",
+                      weekday: "short",
+                    }).format(dayDate)
+                  : "";
+                const blocks = blocksByDay.get(dayKey) ?? [];
+                const visibleBlocks = blocks.slice(0, 3);
+                const hiddenCount = blocks.length - 3;
 
-                {/* B) Tek Seferlik Müsaitlikler — tarih sırasıyla ayrı bölüm. */}
-                <section>
-                  <h3 className="mb-2 text-sm font-semibold tracking-tight text-ink-text">
-                    Tek Seferlik Müsaitlikler
-                  </h3>
-                  {singles.length === 0 ? (
-                    <p className="text-xs leading-relaxed text-muted">
-                      Tek seferlik müsaitliğiniz yok.
-                    </p>
-                  ) : (
-                    <ul className="divide-y divide-line rounded-xl border border-line">
-                      {singles.map((slot) => {
-                        const isBusy = slotActionId === slot.id;
-                        return (
-                          <li
-                            key={slot.id}
-                            className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
-                          >
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-sm font-medium text-ink-text">
-                                {formatDateLong(slot.available_date)}
-                              </span>
-                              <span className="text-xs text-muted">
-                                {formatTime(slot.start_time)} –{" "}
-                                {formatTime(slot.end_time)}
-                              </span>
-                              <span className="text-xs font-semibold text-gold">
-                                {slotKindLabel(slot)}
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Badge tone={toneFor(slot.status)}>
-                                {STATUS_LABEL[slot.status]}
-                              </Badge>
-                              {slot.status === "open" ? (
-                                <SecondaryButton
-                                  onClick={() => handleDeleteSlot(slot)}
-                                  disabled={isBusy}
-                                  className="w-auto px-3 py-1.5 text-xs"
-                                  aria-label="Müsaitliği sil"
-                                >
-                                  {isBusy ? "..." : "Sil"}
-                                </SecondaryButton>
-                              ) : null}
-                            </div>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  )}
-                </section>
-
-                {slotActionError ? (
-                  <p
-                    role="alert"
-                    className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
+                return (
+                  <div
+                    key={dayKey}
+                    className={[
+                      "relative flex flex-col min-h-[110px] rounded-xl border border-border bg-card p-2.5 sm:p-3 transition-colors",
+                      isToday ? "border-yellow-500/50 bg-yellow-500/5 ring-1 ring-yellow-500/20" : "",
+                    ].join(" ")}
                   >
-                    {slotActionError}
-                  </p>
-                ) : null}
-
-                {slotActionSuccess ? (
-                  <p
-                    role="status"
-                    className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-300"
-                  >
-                    {slotActionSuccess}
-                  </p>
-                ) : null}
-              </>
-            )}
+                    <div className="flex flex-col items-start gap-1 mb-2">
+                      <span className="text-lg font-bold text-foreground sm:text-xl">
+                        {dayNum}
+                      </span>
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {dayShort}
+                      </span>
+                      {isToday && (
+                        <Badge tone="gold" className="text-[0.6rem]">
+                          Bugün
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5">
+                      {blocks.length === 0 ? (
+                        <p className="text-xs text-muted-foreground/50 text-center py-2">
+                          —
+                        </p>
+                      ) : (
+                        <>
+                          {visibleBlocks.map((block) => (
+                            <CalendarBlockElement
+                              key={block.id}
+                              block={block}
+                              onSlotClick={() => {
+                                if (block.kind === "availability") {
+                                }
+                              }}
+                              onApptClick={() => setApptCalendarId(block.appt?.id ?? null)}
+                            />
+                          ))}
+                          {hiddenCount > 0 && (
+                            <button
+                              type="button"
+                              className="w-full text-xs text-muted-foreground/60 hover:text-foreground py-1"
+                              disabled
+                            >
+                              +{hiddenCount} daha
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </Card>
 
-        <Card className="mt-6" padding="roomy" raised>
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold tracking-tight text-ink-text">
-              Gelen Randevular
-            </h2>
-            {apptState === "ready" ? (
-              <Badge tone="neutral">{appointments.length} kayıt</Badge>
-            ) : null}
-          </div>
+        {selectedCalendarAppt ? (
+          <AppointmentDetailCard
+            appt={selectedCalendarAppt}
+            onClose={() => setApptCalendarId(null)}
+            onUpdateStatus={updateAppointmentStatus}
+            apptActionId={apptActionId}
+          />
+        ) : null}
 
-          {apptActionError ? (
-            <p
-              role="alert"
-              className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-            >
+        {slotActionError ? (
+          <Card className="overflow-hidden border-red-500/30 bg-red-500/10" padding="snug">
+            <p role="alert" className="text-sm text-red-400">
+              {slotActionError}
+            </p>
+          </Card>
+        ) : null}
+        {slotActionSuccess ? (
+          <Card className="overflow-hidden border-green-500/30 bg-green-500/10" padding="snug">
+            <p role="status" className="text-sm text-green-400">
+              {slotActionSuccess}
+            </p>
+          </Card>
+        ) : null}
+
+        {apptActionError ? (
+          <Card className="overflow-hidden border-red-500/30 bg-red-500/10" padding="snug">
+            <p role="alert" className="text-sm text-red-400">
               {apptActionError}
             </p>
-          ) : null}
+          </Card>
+        ) : null}
+
+        {/* Randevular */}
+        <Card className="overflow-hidden" padding="snug">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Randevular</h2>
+          </div>
+
+          <div className="mt-4 flex border-b border-border">
+            <button
+              onClick={() => setActiveApptTab("pending")}
+              className={`flex-1 py-3 px-4 text-sm font-semibold transition-colors duration-200 border-b-2 border-transparent text-center whitespace-nowrap
+                ${activeApptTab === "pending"
+                  ? "border-yellow-500 text-foreground"
+                  : "text-muted-foreground hover:text-foreground"}`}
+            >
+              Onay Bekleyenler ({pendingCount})
+            </button>
+            <button
+              onClick={() => setActiveApptTab("completed")}
+              className={`flex-1 py-3 px-4 text-sm font-semibold transition-colors duration-200 border-b-2 border-transparent text-center whitespace-nowrap
+                ${activeApptTab === "completed"
+                  ? "border-yellow-500 text-foreground"
+                  : "text-muted-foreground hover:text-foreground"}`}
+            >
+              Tamamlananlar ({completedCount})
+            </button>
+            <button
+              onClick={() => setActiveApptTab("cancelled")}
+              className={`flex-1 py-3 px-4 text-sm font-semibold transition-colors duration-200 border-b-2 border-transparent text-center whitespace-nowrap
+                ${activeApptTab === "cancelled"
+                  ? "border-yellow-500 text-foreground"
+                  : "text-muted-foreground hover:text-foreground"}`}
+            >
+              İptal Edilenler ({cancelledCount})
+            </button>
+          </div>
 
           <div className="mt-5">
             {apptState === "loading" ? (
-              <p className="text-sm text-muted">Yükleniyor...</p>
+              <p className="text-sm text-muted-foreground text-center py-8">Yükleniyor...</p>
             ) : apptState === "error" ? (
-              <div className="flex flex-col gap-3">
-                <p
-                  role="alert"
-                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-                >
-                  Randevular yüklenemedi: {apptError ?? "Bilinmeyen hata"}
+              <div className="flex flex-col gap-3 text-center py-4">
+                <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                  {apptError ?? "Randevular yüklenemedi."}
                 </p>
-                <SecondaryButton
-                  onClick={handleApptRetry}
-                  className="w-full sm:w-auto"
-                >
+                <SecondaryButton onClick={() => fetchAppointments(user.id)} className="w-full sm:w-auto mx-auto">
                   Tekrar Dene
                 </SecondaryButton>
               </div>
-            ) : appointments.length === 0 ? (
-              <p className="text-sm leading-relaxed text-muted">
-                Henüz bir randevu talebi yok. Öğrenciler müsait saatlerinize
-                randevu oluşturduğunda burada listelenecek.
+            ) : filteredAppointments.length === 0 ? (
+              <p className="text-sm leading-relaxed text-muted-foreground text-center py-8">
+                {activeApptTab === "pending"
+                  ? "Onay bekleyen randevu bulunmuyor."
+                  : activeApptTab === "completed"
+                  ? "Tamamlanmış randevu bulunmuyor."
+                  : "İptal edilmiş randevu bulunmuyor."}
               </p>
             ) : (
-              <ul className="divide-y divide-line">
-                {appointments.map((appt) => (
-                  <li
-                    key={appt.id}
-                    className="flex flex-col gap-3 py-4"
-                  >
-                    <div className="flex flex-col gap-1">
-                      <span className="text-xs text-muted">
-                        {appt.student_name?.trim() || "Bilinmeyen Öğrenci"}
-                      </span>
-                      {appt.lesson ? (
-                        <span className="text-xs text-muted">
-                          Ders: {appt.lesson}
-                        </span>
-                      ) : null}
-<div className="flex items-center gap-2">
-                         <span className="text-sm font-medium text-ink-text">
-                           Konu: {appt.subject?.trim() || "Belirtilmedi"}
-                         </span>
-{appt.status === 'completed' ? (
-                            <Badge tone="gold" className="!border-green-30 !text-green-600">
-                              Tamamlandı
-                            </Badge>
-                          ) : appt.status === 'cancelled' ? (
-                            <Badge tone="gold" className="!border-red-30 !text-red-600">
-                              İptal Edildi
-                            </Badge>
-                          ) : (
-                            <Badge tone={apptTone(appt.status)}>{APPT_STATUS_LABEL[appt.status]}</Badge>
+              <ul className="divide-y divide-border">
+                {filteredAppointments.map((appt) => {
+                  const info = appointmentDisplayInfo(appt);
+                  const isCancellable = appt.status === "pending" || appt.status === "confirmed";
+                  const isBusy = apptActionId === appt.id;
+                  return (
+                    <li key={appt.id} className="py-5">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex-1 min-w-0">
+                          {appt.lesson && (
+                            <span className="text-xs font-medium text-muted-foreground">
+                              Ders: {appt.lesson}
+                            </span>
                           )}
-                       </div>
-                       <span className="text-xs text-muted">
-                         {(() => {
-                           const info = appointmentDisplayInfo(appt);
-                           const date = info.date ? formatDateLong(info.date) : null;
-                           const start = info.startTime
-                             ? formatTime(info.startTime)
-                             : null;
-                           const end = info.endTime
-                             ? formatTime(info.endTime)
-                             : null;
-                           const pieces: string[] = [];
-                           if (date) pieces.push(date);
-                           if (start && end) {
-                             pieces.push(`${start} – ${end}`);
-                           } else if (start) {
-                             pieces.push(`${start} – ?`);
-                           }
-                           if (info.lessonCount) {
-                             pieces.push(`${info.lessonCount} ders`);
-                           }
-                           if (info.totalDurationMinutes) {
-                             pieces.push(
-                               formatDuration(info.totalDurationMinutes),
-                             );
-                           }
-                           return pieces.length > 0
-                             ? pieces.join(" · ")
-                             : "Randevu bilgisi eksik";
-                         })()}
-                       </span>
-                       {appt.notes && appt.notes.trim() ? (
-                         <span className="mt-1 text-xs leading-relaxed text-subtle">
-                           Not: {appt.notes.trim()}
-                         </span>
-                       ) : null}
-                     </div>
- 
-                     {appt.status === "pending" ? (
-<div className="flex flex-col gap-2 sm:flex-row">
-                           <PrimaryButton
-                             onClick={() => updateAppointmentStatus(appt, "confirmed")}
-                             disabled={apptActionId === appt.id}
-                             className={`bg-green-600 text-white hover:bg-green-700 ${
-                               apptActionId === appt.id ? "opacity-50 cursor-not-allowed" : ""
-                             }`}
-                           >
-                             {apptActionId === appt.id ? "İşleniyor..." : "Onayla"}
-                           </PrimaryButton>
-<SecondaryButton
-                              onClick={() => updateAppointmentStatus(appt, "cancelled")}
-                              disabled={apptActionId === appt.id}
-                              className={`!bg-red-600 !text-white hover:!bg-red-700 ${
-                                apptActionId === appt.id ? "opacity-50 cursor-not-allowed" : ""
-                              }`}
-                            >
-                              Reddet
-                            </SecondaryButton>
-                         </div>
-                     ) : null}
- 
-                     {appt.status === "confirmed" ? (
-<div className="flex flex-col gap-2 sm:flex-row">
-                           <PrimaryButton
-                             onClick={() => updateAppointmentStatus(appt, "completed")}
-                             disabled={apptActionId === appt.id}
-                             className={`bg-green-600 text-white hover:bg-green-700 ${
-                               apptActionId === appt.id ? "opacity-50 cursor-not-allowed" : ""
-                             }`}
-                           >
-                             {apptActionId === appt.id ? "İşleniyor..." : "Tamamlandı Olarak İşaretle"}
-                           </PrimaryButton>
-<SecondaryButton
-                              onClick={() => updateAppointmentStatus(appt, "cancelled")}
-                              disabled={apptActionId === appt.id}
-                              className={`!bg-red-600 !text-white hover:!bg-red-700 ${
-                                apptActionId === appt.id ? "opacity-50 cursor-not-allowed" : ""
-                              }`}
-                            >
-                              İptal Et
-                            </SecondaryButton>
-                         </div>
-                     ) : null}
-                  </li>
-                ))}
+                          <div className="flex items-center gap-2 mt-1">
+                            <h3 className="text-lg font-bold text-foreground">
+                              {appt.subject?.trim() || "Konu belirtilmedi"}
+                            </h3>
+                            <Badge tone={appt.status === "pending" ? "gold" : appt.status === "confirmed" ? "neutral" : appt.status === "cancelled" ? "neutral" : "neutral"}>
+                              {APPT_STATUS_LABEL[appt.status]}
+                            </Badge>
+                          </div>
+                          <div className="mt-3 space-y-2 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-foreground">Öğrenci:</span>
+                              <span>{appt.student_name ?? "Belirtilmedi"}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-foreground">Tarih:</span>
+                              <span>
+                                {info.date ? formatDateLong(info.date) : "Belirtilmemiş"}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-foreground">Saat:</span>
+                              <span>
+                                {info.startTime && info.endTime
+                                  ? `${formatTime(info.startTime)} – ${formatTime(info.endTime)}`
+                                  : info.startTime
+                                  ? `${formatTime(info.startTime)} – ?`
+                                  : "Belirtilmemiş"}
+                              </span>
+                            </div>
+                            {info.lessonCount && (
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-foreground">Ders Sayısı:</span>
+                                <span>{info.lessonCount} ders</span>
+                              </div>
+                            )}
+                            {info.totalDurationMinutes && (
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-foreground">Toplam Süre:</span>
+                                <span>{formatDuration(info.totalDurationMinutes)}</span>
+                              </div>
+                            )}
+                            {appt.notes && appt.notes.trim() && (
+                              <div className="flex items-start gap-2">
+                                <span className="font-medium text-foreground mt-0.5">Not:</span>
+                                <span className="text-muted-foreground">{appt.notes.trim()}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+{(appt.status === "pending" || appt.status === "confirmed") && (
+                          <div className="mt-4 shrink-0 w-full sm:w-auto flex flex-col gap-2 sm:flex-row">
+                            {appt.status === "pending" && (
+                              <div>
+                                <PrimaryButton
+                                  onClick={() => updateAppointmentStatus(appt, "confirmed")}
+                                  disabled={apptActionId === appt.id}
+                                  className="w-full sm:w-auto"
+                                >
+                                  {apptActionId === appt.id ? "Onaylanıyor..." : "Onayla"}
+                                </PrimaryButton>
+                                <SecondaryButton
+                                  onClick={() => updateAppointmentStatus(appt, "cancelled")}
+                                  disabled={apptActionId === appt.id}
+                                  className="w-full sm:w-auto border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                                >
+                                  {apptActionId === appt.id ? "İptal ediliyor..." : "Reddet"}
+                                </SecondaryButton>
+                              </div>
+                            )}
+                            {appt.status === "confirmed" && (
+                              <PrimaryButton
+                                onClick={() => updateAppointmentStatus(appt, "completed")}
+                                disabled={apptActionId === appt.id}
+                                className="w-full sm:w-auto"
+                              >
+                                {apptActionId === appt.id ? "Tamamlanıyor..." : "Tamamlandı Olarak İşaretle"}
+                              </PrimaryButton>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      </li>
+                    );
+                  })}
               </ul>
             )}
           </div>
         </Card>
 
-<div className="mt-6 flex items-center gap-4">
-            <PrimaryButton onClick={handleSignOut} className="h-12 px-4 py-2 bg-red-600/[0.45] text-white hover:bg-red-600/[0.55]">
-              Çıkış Yap
-            </PrimaryButton>
-            <PrimaryButton
-              onClick={onBackToMenu}
-              className="h-12 px-4 py-2"
-            >
-              Ana Sayfa
-            </PrimaryButton>
+        {/* Müsaitliklerim */}
+        <Card className="overflow-hidden" padding="snug">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Müsaitliklerim</h2>
+            {state === "ready" && (
+              <Badge tone="neutral">{slots.length} kayıt</Badge>
+            )}
           </div>
-      </div>
 
-      {studentModalOpen ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="student-modal-title"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget && !studentSubmitting) {
-              closeStudentModal();
-            }
-          }}
-        >
-          <div
-            ref={studentModalPanelRef}
-            tabIndex={-1}
-            className="flex max-h-[calc(100dvh-3rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-line-strong bg-surface shadow-2xl shadow-black/50 outline-none"
-          >
-            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-line bg-ink-deep/40 px-6 py-5">
-              <div className="flex flex-col gap-1">
-                <h2
-                  id="student-modal-title"
-                  className="text-base font-semibold tracking-tight text-ink-text"
-                >
-                  Yeni Öğrenci Ekle
-                </h2>
-                <p className="text-xs leading-relaxed text-muted">
-                  Öğrenci için geçici şifre belirleyin. İlk girişten sonra
-                  değiştirebilir.
+          <div className="mt-5">
+            {state === "loading" ? (
+              <p className="text-sm text-muted-foreground text-center py-8">Yükleniyor...</p>
+            ) : state === "error" ? (
+              <div className="flex flex-col gap-3 text-center py-4">
+                <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                  {errorMsg ?? "Müsaitlikler yüklenemedi."}
                 </p>
+                <SecondaryButton onClick={handleRetry} className="w-full sm:w-auto mx-auto">
+                  Tekrar Dene
+                </SecondaryButton>
               </div>
-              <button
-                type="button"
-                onClick={closeStudentModal}
-                disabled={studentSubmitting}
-                aria-label="Kapat"
-                className="rounded-lg border border-line p-1.5 text-muted transition hover:border-line-strong hover:bg-surface-raised hover:text-ink-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-line disabled:hover:bg-transparent disabled:hover:text-muted"
-              >
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 20 20"
-                  fill="currentColor"
-                  className="h-4 w-4"
+            ) : slots.length === 0 && seriesGroups.length === 0 ? (
+              <p className="text-sm leading-relaxed text-muted-foreground text-center py-8">
+                Henüz oluşturulmuş bir müsaitliğiniz bulunmuyor.
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {singles.map((slot) => {
+                  const isPast = slot.status === "blocked" || (slot.status === "open" && slot.available_date < istanbulTodayKey());
+                  return (
+                    <li key={slot.id} className="py-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-semibold text-foreground">
+                              {formatDateLong(slot.available_date)} · {formatWeekday(slot.available_date)}
+                            </span>
+                            <Badge tone={slot.status === "open" ? "gold" : slot.status === "booked" ? "neutral" : "neutral"}>
+                              {slot.status === "open" ? "Müsait" : slot.status === "booked" ? "Dolu" : "Kapalı"}
+                            </Badge>
+                          </div>
+                          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+                            <span>{formatTime(slot.start_time)} – {formatTime(slot.end_time)}</span>
+                          </div>
+                        </div>
+                        <div className="mt-3 shrink-0 w-full sm:w-auto flex flex-col gap-2 sm:flex-row">
+                          <SecondaryButton
+                            onClick={() => handleDeleteSlot(slot)}
+                            disabled={slotActionId === slot.id}
+                            className="w-full sm:w-auto border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                          >
+                            {slotActionId === slot.id ? "Siliniyor..." : "Sil"}
+                          </SecondaryButton>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+                {seriesGroups.map((group) => {
+                  const firstSlot = group.firstSlot;
+                  const todayKey = istanbulTodayKey();
+                  // Find the next upcoming occurrence in this series (first slot with available_date >= today)
+                  const seriesSlots = slots.filter((s) => s.series_id === firstSlot.series_id);
+                  const nextOccurrence = seriesSlots
+                    .filter((s) => s.available_date >= todayKey)
+                    .sort((a, b) => a.available_date.localeCompare(b.available_date))[0] ?? null;
+                  return (
+                    <li key={group.key} className="py-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-semibold text-foreground">
+                              {formatWeekday(firstSlot.source_date ?? firstSlot.available_date)}
+                            </span>
+                            <Badge tone="gold" className="text-xs">
+                              Her hafta tekrar
+                            </Badge>
+                            <Badge tone={firstSlot.status === "open" ? "gold" : firstSlot.status === "booked" ? "neutral" : "neutral"}>
+                              {firstSlot.status === "open" ? "Müsait" : firstSlot.status === "booked" ? "Dolu" : "Kapalı"}
+                            </Badge>
+                          </div>
+                          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+                            <span>{formatTime(firstSlot.start_time)} – {formatTime(firstSlot.end_time)}</span>
+                          </div>
+                          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+                            <span className="font-medium text-foreground">Başlangıç:</span>
+                            <span>{formatDateLong(firstSlot.source_date ?? firstSlot.available_date)}</span>
+                          </div>
+                          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+                            <span className="font-medium text-foreground">Gelecek tekrar sayısı:</span>
+                            <span>{group.count} hafta</span>
+                          </div>
+                        </div>
+                        <div className="mt-3 shrink-0 w-full sm:w-auto flex flex-col gap-2 sm:flex-row">
+                          {nextOccurrence ? (
+                            <>
+                              <SecondaryButton
+                                onClick={() => handleCancelSlotDay(nextOccurrence)}
+                                disabled={slotActionId === nextOccurrence.id}
+                                className="w-full sm:w-auto"
+                              >
+                                {slotActionId === nextOccurrence.id ? "İptal ediliyor..." : "Bu Haftayı İptal Et"}
+                              </SecondaryButton>
+                            </>
+                          ) : (
+                            <SecondaryButton
+                              disabled
+                              className="w-full sm:w-auto opacity-50"
+                            >
+                              Gelecek müsaitlik yok
+                            </SecondaryButton>
+                          )}
+                          <SecondaryButton
+                            onClick={() => handleDeleteSlot(firstSlot, false)}
+                            disabled={slotActionId === firstSlot.id}
+                            className="w-full sm:w-auto border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                          >
+                            {slotActionId === firstSlot.id ? "Siliniyor..." : "Tüm Seriyi Sil"}
+                          </SecondaryButton>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        </Card>
+
+        {apptActionError ? (
+          <Card className="overflow-hidden border-red-500/30 bg-red-500/10" padding="snug">
+            <p role="alert" className="text-sm text-red-400">
+              {apptActionError}
+            </p>
+          </Card>
+        ) : null}
+
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <SecondaryButton
+            onClick={() => router.push("/panel/ogretmen")}
+            className="w-full sm:w-auto"
+          >
+            Menüye Dön
+          </SecondaryButton>
+          <PrimaryButton onClick={handleSignOut} className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white focus-visible:ring-red-500">
+            Çıkış Yap
+          </PrimaryButton>
+        </div>
+
+        {studentModalOpen ? (
+          <StudentModal
+            open={studentModalOpen}
+            onClose={closeStudentModal}
+            onSubmit={handleStudentSubmit}
+            form={studentForm}
+            formError={studentFormError}
+            formSuccess={studentFormSuccess}
+            submitting={studentSubmitting}
+            onFieldChange={handleStudentFieldChange}
+            panelRef={studentModalPanelRef}
+          />
+        ) : null}
+
+        {deleteConfirmSeriesId ? (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-confirm-title"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          >
+            <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl">
+              <h3 id="delete-confirm-title" className="text-lg font-semibold text-foreground">
+                Tüm Seriyi Sil
+              </h3>
+              <p className="mt-3 text-sm text-muted-foreground">
+                Bu haftalık tekrar serisine ait <strong>tüm müsaitlik kayıtları</strong>
+                kalıcı olarak silinecek. Bu işlem geri alınamaz.
+              </p>
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <SecondaryButton
+                  onClick={() => setDeleteConfirmSeriesId(null)}
+                  className="w-full sm:w-auto"
                 >
-                  <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-                </svg>
-              </button>
-            </div>
-
-            <form
-              id="student-create-form"
-              onSubmit={handleStudentSubmit}
-              className="flex flex-col gap-4 overflow-y-auto px-6 py-5"
-            >
-              <TextInput
-                id="student-full-name"
-                name="full_name"
-                type="text"
-                label="Ad Soyad"
-                value={studentForm.full_name}
-                onChange={handleStudentFieldChange}
-                autoComplete="name"
-                required
-              />
-              <TextInput
-                id="student-email"
-                name="email"
-                type="email"
-                label="E-posta"
-                value={studentForm.email}
-                onChange={handleStudentFieldChange}
-                autoComplete="email"
-                required
-              />
-              <TextInput
-                id="student-temporary-password"
-                name="temporary_password"
-                type="text"
-                label="Geçici Şifre"
-                value={studentForm.temporary_password}
-                onChange={handleStudentFieldChange}
-                autoComplete="new-password"
-                required
-              />
-              <TextInput
-                id="student-phone"
-                name="phone"
-                type="tel"
-                label="Telefon (isteğe bağlı)"
-                value={studentForm.phone}
-                onChange={handleStudentFieldChange}
-                autoComplete="tel"
-              />
-
-              {studentFormError ? (
-                <p
-                  role="alert"
-                  className="shrink-0 rounded-xl border border-red-500/40 bg-red-500/15 px-3.5 py-2.5 text-sm text-red-300"
+                  İptal
+                </SecondaryButton>
+                <PrimaryButton
+                  onClick={() => {
+                    handleDeleteSlot(
+                      {
+                        id: "",
+                        series_id: deleteConfirmSeriesId!,
+                        recurrence_rule: "WEEKLY",
+                        available_date: "",
+                        start_time: "",
+                        end_time: "",
+                        status: "open",
+                        teacher_id: user.id,
+                      } as AvailabilityRow,
+                      true,
+                    );
+                  }}
+                  className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white"
                 >
-                  {studentFormError}
-                </p>
-              ) : null}
-
-              {studentFormSuccess ? (
-                <p
-                  role="status"
-                  className="shrink-0 rounded-xl border border-gold/40 bg-gold-soft px-3.5 py-2.5 text-sm text-gold"
-                >
-                  {studentFormSuccess}
-                </p>
-              ) : null}
-            </form>
-
-            <div className="flex shrink-0 flex-col gap-2 border-t border-line bg-ink-deep/40 px-6 py-4 sm:flex-row sm:justify-end">
-              <SecondaryButton
-                type="button"
-                onClick={closeStudentModal}
-                disabled={studentSubmitting}
-                className="w-full sm:w-auto"
-              >
-                İptal
-              </SecondaryButton>
-              <PrimaryButton
-                type="submit"
-                form="student-create-form"
-                disabled={studentSubmitting}
-                className="w-full sm:w-auto"
-              >
-                {studentSubmitting ? "Oluşturuluyor..." : "Öğrenci Oluştur"}
-              </PrimaryButton>
+                  Evet, Tümünü Sil
+                </PrimaryButton>
+              </div>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+
+        {toast ? (
+          <div
+            role="status"
+            aria-live="polite"
+            className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-2.5 text-sm text-green-400 shadow-lg"
+          >
+            {toast}
+          </div>
+        ) : null}
+      </div>
     </main>
   );
 }
 
-function toneFor(status: AvailabilityRow["status"]): "gold" | "neutral" {
-  return status === "open" ? "gold" : "neutral";
-}
-
-// "Tek seferlik" ya da "Her hafta Pazartesi" etiketi üretir. Haftalık
-// tekrar için kaynak tarihin hafta içi gün adı (Europe/Istanbul) kullanılır.
-function slotKindLabel(slot: AvailabilityRow): string {
-  if (slot.recurrence_rule === "WEEKLY") {
-    const ref = slot.source_date ?? slot.available_date;
-    const weekday = formatWeekday(ref).replace(/^(.)(.*)$/, (_, a: string, b: string) =>
-      a.toUpperCase() + b,
-    );
-    return `Her hafta ${weekday}`;
-  }
-  return "Tek seferlik";
-}
-
-// "YYYY-MM-DD" tuşunun Europe/Istanbul hafta günü indeksi (Pzt=0 .. Paz=6).
-// Haftalık tekrar serilerini gruplamak ve "Bu haftanın X günü" tarihinı
-// hesaplamak için kullanılır. source_date yoksa available_date kullanılır.
-const WEEKDAY_INDEX_MAP: Record<string, number> = {
-  Pzt: 0,
-  Sal: 1,
-  Çar: 2,
-  Per: 3,
-  Cum: 4,
-  Cmt: 5,
-  Paz: 6,
-};
-function weekdayIndexOf(dayKey: string): number | null {
-  const date = dateOnlyToDate(dayKey);
-  if (!date) return null;
-  const parts = new Intl.DateTimeFormat("tr-TR", {
-    timeZone: "Europe/Istanbul",
-    weekday: "short",
-  }).formatToParts(date);
-  const wd = parts.find((p) => p.type === "weekday")?.value ?? "";
-  return wd in WEEKDAY_INDEX_MAP ? WEEKDAY_INDEX_MAP[wd] : null;
-}
-
-// Haftalık tekrar serisini "tek satır" olarak göstermek için gruplama anahtarı.
-// Aynı series_id olsa bile farklı start_time / end_time / hafta günü farklıysa
-// ayrı satır olsun (kural 10).
-function seriesGroupKey(slot: AvailabilityRow): string {
-  const ref = slot.source_date ?? slot.available_date;
-  const wd = weekdayIndexOf(ref);
-  return `${slot.series_id ?? ""}|${slot.start_time}|${slot.end_time}|${wd ?? -1}`;
-}
-
-function apptTone(status: AppointmentStatus): "gold" | "neutral" {
-  if (status === "pending") return "gold";
-  return "neutral";
-}
-
-function translateInsertError(error: {
-  code?: string;
-  message?: string;
-}): string {
-  if (error.code === "23505") {
-    return "Bu tarih ve saat aralığı zaten mevcut. Farklı bir tarih veya saat deneyin.";
-  }
-  if (error.code === "42501") {
-    return "Bu işlem için yetkiniz yok. Yalnızca öğretmenler müsaitlik ekleyebilir.";
-  }
-  if (error.code === "P0003") {
-    return "Bitiş saati başlangıç saatinden sonra olmalıdır.";
-  }
-  return error.message ?? "Müsaitlik kaydedilemedi. Lütfen tekrar deneyin.";
-}
-
-function translateStatusError(error: {
-  code?: string;
-  message?: string;
-}): string {
-  if (error.code === "P0003") {
-    return "Bu durum geçişi geçerli değil. Randevu artık bu işlemi kabul etmiyor olabilir.";
-  }
-  if (error.code === "42501") {
-    return "Bu randevunun durumunu değiştirme yetkiniz yok.";
-  }
-  return error.message ?? "İşlem gerçekleştirilemedi. Lütfen tekrar deneyin.";
-}
-
-// availability_overrides tablosuna cancel override yazarken dönebilecek
-// bilinen hataları Türkçe ve anlaşılır biçime çevirir.
-function translateOverrideError(error: {
-  code?: string;
-  message?: string;
-}): string {
-  // 42501: RLS reddi (politics veya tablo grant'lerinden kaynaklı).
-  if (error.code === "42501") {
-    return "Bu günü iptal etme yetkiniz yok. Oturumunuzu yenileyip tekrar deneyin.";
-  }
-  // 42P01: tablo mevcut değil (migration uygulanmamış).
-  if (error.code === "42P01") {
-    return "İptal altyapısı henüz hazır değil. Lütfen yöneticinize başvurun.";
-  }
-  // 23505: unique ihlali (upsert'te oluşmaz ama yine de ele al).
-  if (error.code === "23505") {
-    return "Bu gün zaten iptal edilmiş durumda.";
-  }
-  return (
-    error.message ??
-    "Bu haftanın günü iptal edilemedi. Lütfen tekrar deneyin."
-  );
-}
-
-const CALENDAR_HOUR_HEIGHT_PX = 56;
-
-function CalendarHourRow({
-  hour,
-  weekDays,
-  blocksByDay,
-  selectedCalendarApptId,
-  onSelectAppt,
-}: {
-  hour: number;
-  weekDays: string[];
-  blocksByDay: Map<string, CalendarBlock[]>;
-  selectedCalendarApptId: string | null;
-  onSelectAppt: (id: string | null) => void;
-}) {
-  const hourStart = hour * 60;
-  const hourEnd = hourStart + 60;
-
-  return (
-    <>
-      <div
-        key={`h-${hour}`}
-        className="relative flex items-start justify-end px-1 pt-0.5 text-[0.625rem] text-subtle"
-        style={{ height: CALENDAR_HOUR_HEIGHT_PX }}
-      >
-        {pad2(hour)}:00
-      </div>
-      {weekDays.map((dayKey) => {
-        const dayBlocks = blocksByDay.get(dayKey) ?? [];
-        return (
-          <div
-            key={`${dayKey}-${hour}`}
-            className="relative border-t border-line/60"
-            style={{ height: CALENDAR_HOUR_HEIGHT_PX }}
-          >
-            {dayBlocks.map((block) => {
-              if (
-                block.startMinutes >= hourEnd ||
-                block.endMinutes <= hourStart
-              ) {
-                return null;
-              }
-              const top =
-                ((block.startMinutes - hourStart) / 60) *
-                CALENDAR_HOUR_HEIGHT_PX;
-              const heightPx =
-                ((block.endMinutes - block.startMinutes) / 60) *
-                CALENDAR_HOUR_HEIGHT_PX;
-              const isSel =
-                selectedCalendarApptId != null &&
-                block.kind === "appointment" &&
-                block.id === `appt:${selectedCalendarApptId}`;
-              return (
-                <CalendarCell
-                  key={block.id}
-                  block={block}
-                  top={top}
-                  heightPx={heightPx}
-                  selected={isSel}
-                  onSelectAppt={onSelectAppt}
-                />
-              );
-            })}
-          </div>
-        );
-      })}
-    </>
-  );
-}
-
-function CalendarCell({
-  block,
-  top,
-  heightPx,
-  selected,
-  onSelectAppt,
-}: {
-  block: CalendarBlock;
-  top: number;
-  heightPx: number;
-  selected: boolean;
-  onSelectAppt: (id: string | null) => void;
-}) {
-  if (block.kind === "availability") {
-    const isBooked = block.slotStatus === "booked";
-    const tonal = isBooked
-      ? "border-line-strong/60 bg-line/30 text-muted"
-      : "border-gold/40 bg-gold/15 text-gold";
-    return (
-      <div
-        aria-hidden="true"
-        className={`pointer-events-none absolute left-1 right-1 overflow-hidden rounded-md border ${tonal} ${
-          block.past ? "opacity-40" : ""
-        }`}
-        style={{ top, height: heightPx }}
-      >
-        <div className="flex h-full items-start px-1.5 py-1">
-          <span className="truncate text-[0.625rem] font-medium leading-tight">
-            {isBooked ? "" : "Müsait"}
-          </span>
-        </div>
-      </div>
-    );
-  }
-
-  const appt = block.appt;
-  if (!appt) return null;
-  const status = block.status ?? "pending";
-  const toneClass =
-    status === "confirmed"
-      ? "border-sky-500/50 bg-sky-500/15 text-sky-200"
-      : status === "pending"
-        ? "border-gold/60 bg-gold/25 text-gold"
-        : status === "completed"
-          ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
-          : "border-red-500/50 bg-red-500/15 text-red-300";
-  const selectedClass = selected ? "ring-2 ring-gold/70 ring-offset-0" : "";
-
-  return (
-    <button
-      type="button"
-      onClick={() => onSelectAppt(appt.id)}
-      className={`absolute left-1 right-1 overflow-hidden rounded-md border px-1.5 py-1 text-left transition-shadow ${toneClass} ${
-        block.past ? "opacity-50" : ""
-      } ${selectedClass}`}
-      style={{ top, height: heightPx }}
-      aria-label={`Randevu: ${appt.student_name?.trim() || "Öğrenci"} - ${
-        appt.subject?.trim() || "Konu"
-      }`}
-    >
-      <div className="flex h-full min-w-0 flex-col">
-        <span className="truncate text-[0.625rem] font-medium leading-tight">
-          {appt.student_name?.trim() || "Öğrenci"}
-        </span>
-        {heightPx >= 28 ? (
-          <span className="truncate text-[0.625rem] leading-tight opacity-80">
-            {appt.subject?.trim() || appt.lesson?.trim() || ""}
-          </span>
-        ) : null}
-      </div>
-    </button>
-  );
-}
-
-/* -------------------------------------------------------------------------- */
-/*  Yeni Müsaitlik Ekle — Türkçe tarih ve 24 saat seçiciler                    */
-/* -------------------------------------------------------------------------- */
-
-function pickerDayKey(year: number, monthIdx: number, day: number): string {
-  const m = String(monthIdx + 1).padStart(2, "0");
-  const d = String(day).padStart(2, "0");
-  return `${year}-${m}-${d}`;
-}
-
-/**
- Tarih seçici — Türkçe, Pazartesi başlangıçlı, gg.aa.yyyy gösterim,
- "YYYY-MM-DD" değer. Geçmiş tarihler seçilemez.
-*/
 function TurkishDatePicker({
   id,
   label,
   value,
   onChange,
   minDayKey,
-  "aria-invalid": ariaInvalid,
-  "aria-describedby": ariaDescribedby,
+  ariaInvalid,
+  ariaDescribedby,
 }: {
   id: string;
   label: string;
   value: string;
-  onChange: (dayKey: string) => void;
+  onChange: (value: string) => void;
   minDayKey: string;
-  "aria-invalid"?: boolean;
-  "aria-describedby"?: string;
+  ariaInvalid?: boolean;
+  ariaDescribedby?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-
-  const todayKey = minDayKey;
-  const [calendarDayKey, setCalendarDayKey] = useState<string>(
-    () =>
-      value ??
-      pickerDayKey(
-        Number(todayKey.slice(0, 4)),
-        Number(todayKey.slice(5, 7)) - 1,
-        Number(todayKey.slice(8, 10)),
-      ),
-  );
-
-  function selectMonthDelta(delta: number) {
-    const cur = dateOnlyToDate(calendarDayKey);
-    if (!cur) return;
-    const y = cur.getUTCFullYear();
-    const m = cur.getUTCMonth();
-    let ny = y;
-    let nm = m + delta;
-    if (nm < 0) {
-      nm = 11;
-      ny -= 1;
-    } else if (nm > 11) {
-      nm = 0;
-      ny += 1;
-    }
-    const last = new Date(Date.UTC(ny, nm + 1, 0)).getUTCDate();
-    const nd = Math.min(cur.getUTCDate(), last);
-    setCalendarDayKey(pickerDayKey(ny, nm, nd));
-  }
+  const [isOpen, setIsOpen] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    const base = value ? dateOnlyToDate(value) : istanbulTodayStart();
+    if (!base) return new Date();
+    return new Date(base.getFullYear(), base.getMonth(), 1);
+  });
+  const inputRef = useRef<HTMLInputElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!open) return;
-    function onDocClick(e: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(e.target as Node)
-      ) {
-        setOpen(false);
+    function handleClickOutside(event: MouseEvent) {
+      const clickedInput = inputRef.current?.contains(event.target as Node);
+      const clickedPopover = popoverRef.current?.contains(event.target as Node);
+      console.log("[TurkishDatePicker] OUTSIDE CLICK", { clickedInput, clickedPopover, target: event.target });
+      if (!clickedInput && !clickedPopover) {
+        console.log("[TurkishDatePicker] CLOSING POPUP via outside click");
+        setIsOpen(false);
       }
     }
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        setOpen(false);
-        triggerRef.current?.focus();
-      }
-    }
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
-  const viewDate = dateOnlyToDate(calendarDayKey) ?? new Date();
-  const viewYear = viewDate.getUTCFullYear();
-  const viewMonth = viewDate.getUTCMonth();
+  const monthNames = [
+    "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
+    "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık",
+  ];
 
-  const daysInMonth = new Date(
-    Date.UTC(viewYear, viewMonth + 1, 0),
-  ).getUTCDate();
+  const weekdayNames = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 
-  const firstOfMonthUtc = new Date(Date.UTC(viewYear, viewMonth, 1));
-  const firstWeekdayShort =
-    new Intl.DateTimeFormat("tr-TR", {
+  const todayKey = istanbulTodayKey();
+
+  const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
+  const firstDayIndex = (currentMonth.getDay() + 6) % 7;
+
+  const prevMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
+  const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+
+  function handleDayClick(day: number) {
+    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+    const key = istanbulDayKeyFromDate(date);
+    console.log("[TurkishDatePicker] CALENDAR ONSELECT", { day, date, key, value, minDayKey });
+    onChange(key);
+    console.log("[TurkishDatePicker] SELECTED DATE STATE", { newValue: key });
+    setIsOpen(false);
+  }
+
+  function handleTodayClick() {
+    const key = todayKey;
+    console.log("[TurkishDatePicker] TODAY CLICK", { key });
+    onChange(key);
+    setIsOpen(false);
+  }
+
+  function handleClearClick() {
+    console.log("[TurkishDatePicker] CLEAR CLICK");
+    onChange("");
+    setIsOpen(false);
+  }
+
+  function handlePrevMonth() {
+    setCurrentMonth(prevMonth);
+  }
+
+  function handleNextMonth() {
+    setCurrentMonth(nextMonth);
+  }
+
+  function formatDisplay(dateKey: string | null): string {
+    if (!dateKey) return "";
+    const date = dateOnlyToDate(dateKey);
+    if (!date) return "";
+    return new Intl.DateTimeFormat("tr-TR", {
       timeZone: "Europe/Istanbul",
-      weekday: "short",
-    }).formatToParts(firstOfMonthUtc).find((p) => p.type === "weekday")
-      ?.value ?? "Pzt";
-  const shortToMonIdx: Record<string, number> = {
-    Pzt: 0,
-    Sal: 1,
-    Çar: 2,
-    Per: 3,
-    Cum: 4,
-    Cmt: 5,
-    Paz: 6,
-  };
-  const leadingBlanks = shortToMonIdx[firstWeekdayShort] ?? 0;
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }).format(date);
+  }
 
   return (
-    <div ref={containerRef} className="relative">
-      <label
-        htmlFor={id}
-        className="mb-1.5 block text-sm font-medium text-ink-text"
-      >
+    <div className="flex flex-col gap-1.5 relative">
+      <label htmlFor={id} className="text-sm font-medium text-foreground">
         {label}
       </label>
-      <button
-        ref={triggerRef}
-        type="button"
-        id={id}
-        onClick={() => setOpen((p) => !p)}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-invalid={ariaInvalid}
-        aria-describedby={ariaDescribedby}
-        className={[
-          "w-full rounded-xl border border-line bg-ink px-3.5 py-3 text-left text-sm text-ink-text",
-          "transition-colors duration-200 hover:border-line-strong",
-          "focus:border-gold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-ink focus:ring-gold/60",
-          "min-h-11 touch-manipulation flex items-center justify-between gap-2",
-        ].join(" ")}
-      >
-        <span className={value ? "text-ink-text" : "text-subtle"}>
-          {value ? formatDayKeyTr(value) : "gg.aa.yyyy"}
-        </span>
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          className="h-4 w-4 text-subtle"
-        >
-          <rect x="3" y="4.5" width="18" height="16" rx="2" />
-          <path d="M3 9h18M8 2.5v4M16 2.5v4" />
-        </svg>
-      </button>
-
-      {open ? (
-        <div
-          role="dialog"
-          aria-label={`${label} seç`}
-          className="absolute left-0 right-0 z-30 mt-1 rounded-2xl border border-line bg-surface p-3 shadow-2xl shadow-ink-deep/40 sm:right-auto sm:w-72"
-        >
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => selectMonthDelta(-1)}
-              aria-label="Önceki ay"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted transition hover:border-line-strong hover:bg-ink/40 hover:text-ink-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
-            >
-              ‹
-            </button>
-            <span className="text-sm font-semibold text-ink-text">
-              {MONTH_LABELS_TR[viewMonth]} {viewYear}
-            </span>
-            <button
-              type="button"
-              onClick={() => selectMonthDelta(1)}
-              aria-label="Sonraki ay"
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted transition hover:border-line-strong hover:bg-ink/40 hover:text-ink-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
-            >
-              ›
-            </button>
-          </div>
-
+      <div className="relative">
+        <input
+          ref={inputRef}
+          id={id}
+          type="text"
+          readOnly
+          value={formatDisplay(value)}
+          placeholder="gg.aa.yyyy"
+          onClick={() => setIsOpen(true)}
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedby}
+          className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground transition-colors duration-200 hover:border-yellow-500/50 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 min-h-11 touch-manipulation disabled:opacity-60 cursor-pointer"
+        />
+        {isOpen && (
           <div
-            className="grid gap-1 text-center"
-            style={{ gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}
+            ref={popoverRef}
+            className="absolute left-0 top-full mt-1 z-50 w-full max-w-xs bg-surface border border-border rounded-xl shadow-xl p-4"
+            role="dialog"
+            aria-label="Tarih seçici"
           >
-            {WEEKDAY_LABELS.map((d) => (
-              <div
-                key={d}
-                className="py-1 text-[0.625rem] font-semibold uppercase tracking-wide text-subtle"
+            <div className="flex items-center justify-between mb-3">
+              <button
+                type="button"
+                onClick={handlePrevMonth}
+                className="p-1 rounded-lg hover:bg-border transition-colors"
+                aria-label="Önceki ay"
               >
-                {d}
-              </div>
-            ))}
-
-            {Array.from({ length: leadingBlanks }).map((_, i) => (
-              <div key={`b${i}`} />
-            ))}
-
-            {Array.from({ length: daysInMonth }, (_, i) => {
-              const day = i + 1;
-              const dayKey = pickerDayKey(viewYear, viewMonth, day);
-              const isDisabled = dayKey < todayKey;
-              const isSelected = dayKey === value;
-              const isToday = dayKey === todayKey;
-              return (
-                <button
-                  key={dayKey}
-                  type="button"
-                  disabled={isDisabled}
-                  onClick={() => {
-                    onChange(dayKey);
-                    setOpen(false);
-                    triggerRef.current?.focus();
-                  }}
-                  aria-label={formatDayKeyTr(dayKey)}
-                  aria-pressed={isSelected}
-                  className={[
-                    "h-8 w-full rounded-lg text-xs transition-colors",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/60",
-                    isDisabled
-                      ? "cursor-not-allowed text-subtle/40"
-                      : "text-ink-text hover:border-line-strong hover:bg-ink/60",
-                    isSelected
-                      ? "bg-gold font-semibold text-ink"
-                      : isToday
-                        ? "border border-gold/50 text-gold"
-                        : "border border-transparent",
-                  ].join(" ")}
-                >
-                  {day}
-                </button>
-              );
-            })}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M15 18l-6-6 6-6" />
+                </svg>
+              </button>
+              <span className="text-sm font-semibold text-foreground">
+                {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
+              </span>
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                className="p-1 rounded-lg hover:bg-border transition-colors"
+                aria-label="Sonraki ay"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </button>
+            </div>
+            <div className="grid grid-cols-7 gap-1 mb-2 text-center text-xs text-muted-foreground">
+              {weekdayNames.map((d) => (
+                <div key={d}>{d}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {Array.from({ length: firstDayIndex }, (_, i) => (
+                <div key={`empty-${i}`} className="aspect-square" />
+              ))}
+{Array.from({ length: daysInMonth }, (_, i) => {
+                const day = i + 1;
+                const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+                const key = istanbulDayKeyFromDate(date);
+                const isToday = Boolean(key === todayKey);
+                const isSelected = key === value;
+                const isDisabled = Boolean(minDayKey && key < minDayKey);
+                console.log("[TurkishDatePicker] DAY RENDER", { day, key, isToday, isSelected, isDisabled, minDayKey, date: date.toISOString() });
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onPointerDown={(e) => console.log("[TurkishDatePicker] DAY POINTER DOWN", { day, key, disabled: isDisabled })}
+                    onClick={(e) => {
+                      console.log("[TurkishDatePicker] DAY CLICK", { day, key, disabled: isDisabled });
+                      if (!isDisabled) handleDayClick(day);
+                    }}
+                    disabled={isDisabled}
+                    className={`aspect-square rounded-lg text-sm font-medium transition-all duration-150 ease-out ${
+                      isDisabled
+                        ? "text-muted-foreground/30 cursor-not-allowed"
+                        : isSelected
+                        ? "bg-yellow-500 text-white hover:bg-yellow-500 hover:text-white"
+                        : isToday
+                        ? "bg-yellow-500/20 text-yellow-500 border border-yellow-500/30 hover:border-yellow-500/50 hover:bg-yellow-500/30 hover:shadow-[0_0_0_2px_theme(colors.yellow.500)]"
+                        : "text-foreground hover:bg-border hover:border-yellow-500/50 hover:shadow-[0_0_0_2px_theme(colors.yellow.500)]"
+                    }`}
+                    aria-selected={isSelected}
+                    aria-current={isToday === true ? "date" : undefined}
+                  >
+                    {day}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+              <button
+                type="button"
+                onClick={handleClearClick}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Temizle
+              </button>
+              <button
+                type="button"
+                onClick={handleTodayClick}
+                className="text-xs font-semibold text-yellow-500 hover:text-yellow-400 transition-colors"
+              >
+                Bugün
+              </button>
+            </div>
           </div>
-        </div>
-      ) : null}
+        )}
+      </div>
     </div>
   );
 }
 
-/**
- Başlangıç/Bitiş için iki ayrı select: saat (00–23) ve dakika (5 dk adımlarla).
- 24 saat, AM/PM yok. Değerler form state'inde ayrı tutulur; HH:mm yukarıda
- buildTime() ile üretilir.
-*/
 function HourMinutePicker({
   label,
   hourName,
@@ -2858,57 +2402,41 @@ function HourMinutePicker({
   ariaDescribedby,
 }: {
   label: string;
-  hourName: keyof AvailabilityForm;
-  minuteName: keyof AvailabilityForm;
+  hourName: string;
+  minuteName: string;
   hourValue: string;
   minuteValue: string;
-  onChange: (field: keyof AvailabilityForm, value: string) => void;
+  onChange: (field: string, value: string) => void;
   ariaInvalid?: boolean;
   ariaDescribedby?: string;
 }) {
-  const selectClass = [
-    "w-full rounded-xl border border-line bg-ink px-2.5 py-3 text-sm text-ink-text",
-    "transition-colors duration-200 hover:border-line-strong",
-    "focus:border-gold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-ink focus:ring-gold/60",
-    "min-h-11 touch-manipulation",
-  ].join(" ");
-
   return (
-    <div
-      aria-invalid={ariaInvalid}
-      aria-describedby={ariaDescribedby}
-    >
-      <span className="mb-1.5 block text-sm font-medium text-ink-text">
-        {label}
-      </span>
-      <div className="flex items-center gap-2">
+    <div className="flex flex-col gap-1.5">
+      <label className="text-sm font-medium text-foreground">{label}</label>
+      <div className="flex gap-2">
         <select
-          aria-label={`${label} saati`}
+          name={hourName}
           value={hourValue}
           onChange={(e) => onChange(hourName, e.target.value)}
-          className={selectClass}
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedby}
+          className="w-[70px] flex-1 rounded-xl border border-border bg-surface px-3 py-3 text-sm text-foreground transition-colors duration-200 hover:border-yellow-500/50 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 min-h-11 touch-manipulation disabled:opacity-60"
         >
-          <option value="" disabled>
-            SS
-          </option>
           {HOUR_OPTIONS.map((h) => (
             <option key={h} value={h}>
               {h}
             </option>
           ))}
         </select>
-        <span aria-hidden="true" className="text-sm text-subtle">
-          :
-        </span>
+        <span className="flex items-center text-foreground mx-1">:</span>
         <select
-          aria-label={`${label} dakikası`}
+          name={minuteName}
           value={minuteValue}
           onChange={(e) => onChange(minuteName, e.target.value)}
-          className={selectClass}
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedby}
+          className="w-[70px] flex-1 rounded-xl border border-border bg-surface px-3 py-3 text-sm text-foreground transition-colors duration-200 hover:border-yellow-500/50 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 min-h-11 touch-manipulation disabled:opacity-60"
         >
-          <option value="" disabled>
-            DD
-          </option>
           {MINUTE_OPTIONS.map((m) => (
             <option key={m} value={m}>
               {m}
@@ -2918,4 +2446,366 @@ function HourMinutePicker({
       </div>
     </div>
   );
+}
+
+function CalendarBlockElement({
+  block,
+  onSlotClick,
+  onApptClick,
+}: {
+  block: CalendarBlock;
+  onSlotClick: () => void;
+  onApptClick: () => void;
+}) {
+  const startStr = minutesToTime(block.startMinutes);
+  const endStr = minutesToTime(block.endMinutes);
+  const isPast = block.past;
+  const isAppointment = block.kind === "appointment";
+
+  const baseClasses =
+    "text-xs rounded-lg px-2 py-1.5 truncate transition-colors cursor-pointer hover:bg-yellow-500/10";
+  const statusColor =
+    block.kind === "availability"
+      ? block.slotStatus === "open"
+        ? "bg-green-500/20 text-green-400 border-green-500/30"
+        : block.slotStatus === "booked"
+        ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
+        : "bg-red-500/20 text-red-400 border-red-500/30"
+      : APPT_STATUS_CALENDAR_TONE[block.status!] === "gold"
+      ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
+      : "bg-gray-500/20 text-gray-400 border-gray-500/30";
+
+  const pastOverlay = isPast ? "opacity-50" : "";
+
+  return (
+    <button
+      type="button"
+      onClick={isAppointment ? onApptClick : onSlotClick}
+      disabled={isPast}
+      className={`${baseClasses} ${statusColor} border ${pastOverlay}`}
+      aria-label={
+        isAppointment
+          ? `Randevu: ${startStr}–${endStr}`
+          : `Müsaitlik: ${startStr}–${endStr}`
+      }
+    >
+      {startStr}–{endStr}
+    </button>
+  );
+}
+
+function AppointmentDetailCard({
+  appt,
+  onClose,
+  onUpdateStatus,
+  apptActionId,
+}: {
+  appt: AppointmentRow;
+  onClose: () => void;
+  onUpdateStatus: (appt: AppointmentRow, nextStatus: AppointmentStatus) => Promise<void>;
+  apptActionId: string | null;
+}) {
+  const info = appointmentDisplayInfo(appt);
+
+  return (
+    <Card className="overflow-hidden border-yellow-500/30 bg-yellow-500/5" padding="snug">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-foreground">Randevu Detayı</h3>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {info.date ? formatDateLong(info.date) : "Tarih belirtilmemiş"} ·
+            {info.startTime && info.endTime
+              ? `${formatTime(info.startTime)} – ${formatTime(info.endTime)}`
+              : info.startTime
+              ? `${formatTime(info.startTime)} – ?`
+              : "Saat belirtilmemiş"}
+          </p>
+        </div>
+        <SecondaryButton
+          onClick={onClose}
+          className="w-full sm:w-auto"
+        >
+          Kapat
+        </SecondaryButton>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div>
+          <p className="text-xs text-muted-foreground">Öğrenci</p>
+          <p className="mt-1 font-medium text-foreground">{appt.student_name ?? "Belirtilmedi"}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Durum</p>
+          <p className="mt-1">
+            <Badge tone={appt.status === "pending" ? "gold" : "neutral"}>
+              {APPT_STATUS_LABEL[appt.status]}
+            </Badge>
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Ders</p>
+          <p className="mt-1 font-medium text-foreground">{appt.lesson ?? "Belirtilmemiş"}</p>
+        </div>
+        <div>
+          <p className="text-xs text-muted-foreground">Konu</p>
+          <p className="mt-1 font-medium text-foreground">{appt.subject ?? "Belirtilmemiş"}</p>
+        </div>
+        {info.lessonCount && (
+          <div>
+            <p className="text-xs text-muted-foreground">Ders Sayısı</p>
+            <p className="mt-1 font-medium text-foreground">{info.lessonCount} ders</p>
+          </div>
+        )}
+        {info.totalDurationMinutes && (
+          <div>
+            <p className="text-xs text-muted-foreground">Toplam Süre</p>
+            <p className="mt-1 font-medium text-foreground">{formatDuration(info.totalDurationMinutes)}</p>
+          </div>
+        )}
+        {appt.notes && appt.notes.trim() && (
+          <div className="sm:col-span-2">
+            <p className="text-xs text-muted-foreground">Not</p>
+            <p className="mt-1 text-sm text-foreground">{appt.notes.trim()}</p>
+          </div>
+        )}
+        {appt.lesson_mode && (
+          <div>
+            <p className="text-xs text-muted-foreground">Ders Türü</p>
+            <p className="mt-1 font-medium text-foreground">{appt.lesson_mode === "online" ? "Online" : "Yüz Yüze"}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        {appt.status === "pending" && (
+          <>
+            <PrimaryButton
+              onClick={() => onUpdateStatus(appt, "confirmed")}
+              disabled={apptActionId === appt.id}
+              className="w-full sm:w-auto"
+            >
+              {apptActionId === appt.id ? "Onaylanıyor..." : "Onayla"}
+            </PrimaryButton>
+            <SecondaryButton
+              onClick={() => onUpdateStatus(appt, "cancelled")}
+              disabled={apptActionId === appt.id}
+              className="w-full sm:w-auto border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+            >
+              {apptActionId === appt.id ? "İptal ediliyor..." : "İptal Et"}
+            </SecondaryButton>
+          </>
+        )}
+        {appt.status === "confirmed" && (
+          <PrimaryButton
+            onClick={() => onUpdateStatus(appt, "completed")}
+            disabled={apptActionId === appt.id}
+            className="w-full sm:w-auto"
+          >
+            {apptActionId === appt.id ? "Tamamlanıyor..." : "Tamamlandı Olarak İşaretle"}
+          </PrimaryButton>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function StudentModal({
+  open,
+  onClose,
+  onSubmit,
+  form,
+  formError,
+  formSuccess,
+  submitting,
+  onFieldChange,
+  panelRef,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  form: NewStudentForm;
+  formError: string | null;
+  formSuccess: string | null;
+  submitting: boolean;
+  onFieldChange: (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+  panelRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 py-6 sm:items-center sm:py-10"
+      onClick={(e) => {
+        if (submitting) return;
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="new-student-modal-title"
+    >
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-y-auto rounded-2xl border border-border bg-surface outline-none"
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+          <h2
+            id="new-student-modal-title"
+            className="text-base font-semibold tracking-tight text-foreground"
+          >
+            Yeni Öğrenci Ekle
+          </h2>
+          <SecondaryButton
+            onClick={onClose}
+            disabled={submitting}
+            className="w-auto px-4 py-2 text-xs"
+            aria-label="Kapat"
+          >
+            Kapat
+          </SecondaryButton>
+        </div>
+
+        <form onSubmit={onSubmit} className="flex flex-col gap-4 px-5 py-5 sm:px-6">
+          {formError ? (
+            <p
+              role="alert"
+              className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
+            >
+              {formError}
+            </p>
+          ) : null}
+          {formSuccess ? (
+            <p
+              role="status"
+              className="rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400"
+            >
+              {formSuccess}
+            </p>
+          ) : null}
+
+          <TextInput
+            id="new-student-full-name"
+            name="full_name"
+            label="Ad Soyad"
+            placeholder="ör. Ayşe Yılmaz"
+            value={form.full_name}
+            onChange={onFieldChange}
+            disabled={submitting}
+            autoComplete="name"
+            required
+          />
+
+          <TextInput
+            id="new-student-email"
+            name="email"
+            type="email"
+            label="E-posta"
+            placeholder="ornek@eposta.com"
+            value={form.email}
+            onChange={onFieldChange}
+            disabled={submitting}
+            autoComplete="email"
+            required
+          />
+
+          <TextInput
+            id="new-student-temporary-password"
+            name="temporary_password"
+            type="password"
+            label="Geçici Şifre"
+            placeholder="En az 8 karakter"
+            value={form.temporary_password}
+            onChange={onFieldChange}
+            disabled={submitting}
+            autoComplete="new-password"
+            hint="Öğretmen ilk girişten sonra değiştirebilir."
+            required
+          />
+
+          <TextInput
+            id="new-student-phone"
+            name="phone"
+            type="tel"
+            label="Telefon (isteğe bağlı)"
+            placeholder="ör. +90 5xx xxx xx xx"
+            value={form.phone}
+            onChange={onFieldChange}
+            disabled={submitting}
+            autoComplete="tel"
+          />
+
+          <div className="w-full">
+            <label
+              htmlFor="new-student-bio"
+              className="mb-1.5 block text-sm font-medium text-foreground"
+            >
+              Biyografi (isteğe bağlı)
+            </label>
+            <textarea
+              id="new-student-bio"
+              name="bio"
+              placeholder="Öğretmen hakkında kısa bilgi"
+              value={form.bio}
+              onChange={onFieldChange}
+              disabled={submitting}
+              rows={4}
+              className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground transition-colors duration-200 hover:border-yellow-500/50 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 min-h-11 touch-manipulation resize-y disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border"
+            />
+          </div>
+
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <SecondaryButton
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="w-full sm:w-auto"
+            >
+              İptal
+            </SecondaryButton>
+            <PrimaryButton
+              type="submit"
+              disabled={submitting}
+              className="w-full sm:w-auto"
+            >
+              {submitting ? "Öğretmen oluşturuluyor..." : "Oluştur"}
+            </PrimaryButton>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function seriesGroupKey(slot: AvailabilityRow): string {
+  const src = slot.source_date ?? slot.available_date;
+  const wd = weekdayIndexOf(src);
+  return `${slot.series_id}|${wd}|${slot.start_time}|${slot.end_time}`;
+}
+
+function weekdayIndexOf(dateKey: string): number | null {
+  const date = dateOnlyToDate(dateKey);
+  if (!date) return null;
+  const day = date.getUTCDay();
+  return day === 0 ? 6 : day - 1;
+}
+
+function translateInsertError(error: { code?: string; message?: string }): string {
+  if (error.code === "23505") {
+    return "Bu saat aralığı zaten kayıtlı.";
+  }
+  return error.message ?? "Müsaitlik eklenirken bir hata oluştu.";
+}
+
+function translateOverrideError(error: { code?: string; message?: string }): string {
+  if (error.code === "23505") {
+    return "Bu gün zaten iptal edilmiş.";
+  }
+  return error.message ?? "İptal işlemi başarısız oldu.";
+}
+
+function translateStatusError(error: { code?: string; message?: string }): string {
+  if (error.code === "P0003") {
+    return "Bu durum geçişine izin verilmiyor.";
+  }
+  return error.message ?? "Durum güncellenemedi.";
 }

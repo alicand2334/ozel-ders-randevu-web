@@ -42,7 +42,6 @@ type DetailApiResponse = {
 
 type ApiError = { error?: string };
 
-// PATCH /api/teacher/students/[id] yanıtı
 type EditStudentResponse = {
   id: string;
   full_name: string | null;
@@ -50,7 +49,6 @@ type EditStudentResponse = {
   is_active: boolean;
 };
 
-// DELETE /api/teacher/students/[id] yanıtı
 type DeleteStudentResponse = {
   message?: string;
   deactivated?: boolean;
@@ -87,27 +85,23 @@ export default function StudentDetailPage() {
   const [state, setState] = useState<FetchState>("loading");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // --- Düzenle modalı ---
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState<EditForm>(EMPTY_EDIT_FORM);
   const [editError, setEditError] = useState<string | null>(null);
   const [editSubmitting, setEditSubmitting] = useState(false);
   const editPanelRef = useRef<HTMLDivElement>(null);
 
-  // --- Pasife Al / Aktif Et modalı ---
   const [toggleOpen, setToggleOpen] = useState(false);
   const [toggleError, setToggleError] = useState<string | null>(null);
   const [toggleSubmitting, setToggleSubmitting] = useState(false);
   const togglePanelRef = useRef<HTMLDivElement>(null);
 
-  // --- Sil modalı (soft-sil) ---
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
   const deletePanelRef = useRef<HTMLDivElement>(null);
 
-  // --- Genel durum mesajı (silme başarılı vb.) ---
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -222,14 +216,12 @@ export default function StudentDetailPage() {
     };
   }, [allowed, studentId, fetchDetail]);
 
-  // --- Toast otomatik kaybolur ---
   useEffect(() => {
     if (!toast) return;
     const id = window.setTimeout(() => setToast(null), 4000);
     return () => window.clearTimeout(id);
   }, [toast]);
 
-  // --- Düzenle modalı açma/kapatma ---
   const openEdit = useCallback(() => {
     if (!profile) return;
     setEditForm({
@@ -247,7 +239,6 @@ export default function StudentDetailPage() {
     setEditError(null);
   }, [editSubmitting]);
 
-  // --- Pasife Al / Aktif Et modalı açma/kapatma ---
   const openToggle = useCallback(() => {
     setToggleError(null);
     setToggleSubmitting(false);
@@ -260,7 +251,6 @@ export default function StudentDetailPage() {
     setToggleError(null);
   }, [toggleSubmitting]);
 
-  // --- Sil modalı açma/kapatma ---
   const openDelete = useCallback(() => {
     setDeleteError(null);
     setDeleteSubmitting(false);
@@ -275,7 +265,6 @@ export default function StudentDetailPage() {
     setDeleteMessage(null);
   }, [deleteSubmitting]);
 
-  // --- ESC ile modal kapatma + focus yönetimi ---
   useEffect(() => {
     if (!editOpen) return;
     function onKey(e: KeyboardEvent) {
@@ -466,7 +455,7 @@ export default function StudentDetailPage() {
     e.preventDefault();
     if (deleteSubmitting) return;
 
-    setDeleteError(null);
+setDeleteError(null);
     setDeleteMessage(null);
 
     setDeleteSubmitting(true);
@@ -507,7 +496,6 @@ export default function StudentDetailPage() {
         ok.message ??
           "Öğrenci listenizden kaldırıldı. Geçmiş randevular korundu.",
       );
-      // Detay sayfasından öğretmen listesine geri dön.
       router.push("/panel/ogretmen");
     } catch {
       setDeleteError("Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.");
@@ -528,8 +516,8 @@ export default function StudentDetailPage() {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col items-center px-6 py-16 sm:px-10">
-      <div className="w-full max-w-2xl">
+    <main className="flex min-h-dvh flex-col px-6 py-8 sm:px-10">
+      <div className="w-full max-w-4xl mx-auto space-y-6">
         <SectionTitle
           align="left"
           eyebrow="Öğretmen Paneli"
@@ -537,11 +525,9 @@ export default function StudentDetailPage() {
           description="Öğrencinize ait bilgileri ve randevu geçmişini görüntüleyin; düzenleyin, pasife alın veya listenizden kaldırın."
         />
 
-        <Card className="mt-6 sm:mt-8" padding="roomy" raised>
+        <Card className="overflow-hidden" padding="snug">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold tracking-tight text-ink-text">
-              Bilgiler
-            </h2>
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Bilgiler</h2>
             {state === "ready" && profile ? (
               <Badge tone={profile.is_active ? "gold" : "neutral"}>
                 {profile.is_active ? "Aktif" : "Pasif"}
@@ -551,37 +537,37 @@ export default function StudentDetailPage() {
 
           <div className="mt-5">
             {state === "loading" ? (
-              <p className="text-sm text-muted">Yükleniyor...</p>
+              <p className="text-sm text-muted-foreground text-center py-8">Yükleniyor...</p>
             ) : state === "error" ? (
               <p
                 role="alert"
-                className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
+                className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
               >
                 {errorMsg ?? "Öğrenci bilgileri yüklenemedi."}
               </p>
             ) : state === "not-found" ? (
               <p
                 role="alert"
-                className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
+                className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
               >
                 Bu öğrenci size bağlı değil.
               </p>
             ) : profile ? (
-              <ul className="divide-y divide-line">
+              <ul className="divide-y divide-border">
                 <li className="flex flex-col gap-0.5 py-3">
-                  <span className="text-xs text-muted">Ad Soyad</span>
-                  <span className="text-sm font-medium text-ink-text">
+                  <span className="text-xs text-muted-foreground">Ad Soyad</span>
+                  <span className="text-sm font-medium text-foreground">
                     {profile.full_name?.trim() || "Belirtilmedi"}
                   </span>
                 </li>
                 <li className="flex flex-col gap-0.5 py-3">
-                  <span className="text-xs text-muted">Telefon</span>
-                  <span className="text-sm font-medium text-ink-text">
+                  <span className="text-xs text-muted-foreground">Telefon</span>
+                  <span className="text-sm font-medium text-foreground">
                     {profile.phone?.trim() || "Belirtilmedi"}
                   </span>
                 </li>
                 <li className="flex flex-col gap-0.5 py-3">
-                  <span className="text-xs text-muted">Durum</span>
+                  <span className="text-xs text-muted-foreground">Durum</span>
                   <Badge tone={profile.is_active ? "gold" : "neutral"}>
                     {profile.is_active ? "Aktif" : "Pasif"}
                   </Badge>
@@ -594,14 +580,14 @@ export default function StudentDetailPage() {
             <div className="mt-5 flex flex-wrap gap-2">
               <SecondaryButton
                 onClick={openEdit}
-                className="w-full sm:w-auto px-4 py-2 text-xs"
+                className="w-full sm:w-auto"
                 aria-label="Öğrenciyi düzenle"
               >
                 Düzenle
               </SecondaryButton>
               <SecondaryButton
                 onClick={openToggle}
-                className="w-full sm:w-auto px-4 py-2 text-xs"
+                className="w-full sm:w-auto"
                 aria-label={
                   profile.is_active ? "Öğrenciyi pasife al" : "Öğrenciyi aktif et"
                 }
@@ -610,7 +596,7 @@ export default function StudentDetailPage() {
               </SecondaryButton>
               <SecondaryButton
                 onClick={openDelete}
-                className="w-full sm:w-auto px-4 py-2 text-xs rounded-full border border-red-500/30 bg-transparent text-red-300 transition-colors duration-200 hover:bg-red-500/10 hover:border-red-500/50 active:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-ink focus-visible:ring-red-400/60"
+                className="w-full sm:w-auto rounded-full border border-red-500/30 bg-transparent text-red-400 hover:bg-red-500/10 hover:border-red-500/50"
                 aria-label="Öğrenciyi listeden kaldır"
               >
                 Sil
@@ -619,8 +605,8 @@ export default function StudentDetailPage() {
           ) : null}
 
           {state === "ready" && profile ? (
-            <p className="mt-4 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-xs leading-relaxed text-muted">
-              <span className="font-semibold text-ink-text">Not:</span> Sil
+            <p className="mt-4 rounded-xl border border-border bg-surface px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+              <span className="font-semibold text-foreground">Not:</span> Sil
               butonu öğrencinin hesabını, profilini ya da geçmiş randevularını
               fiziksel olarak <span className="font-semibold">silmez</span>.
               Yalnızca aranızdaki öğretmen-öğrenci ilişkisini kaldırır. Aktif
@@ -630,43 +616,39 @@ export default function StudentDetailPage() {
           ) : null}
         </Card>
 
-        <Card className="mt-6" padding="roomy" raised>
-          <h2 className="text-base font-semibold tracking-tight text-ink-text">
-            Randevu Özeti
-          </h2>
+        <Card className="overflow-hidden" padding="snug">
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">Randevu Özeti</h2>
           <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="flex flex-col gap-1 rounded-lg border border-line bg-surface px-3 py-2.5">
-              <dt className="text-xs text-muted">Toplam Randevu</dt>
-              <dd className="text-lg font-semibold text-ink-text">
+            <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2.5">
+              <dt className="text-xs text-muted-foreground">Toplam Randevu</dt>
+              <dd className="text-lg font-semibold text-foreground">
                 {appointments.length}
               </dd>
             </div>
-            <div className="flex flex-col gap-1 rounded-lg border border-line bg-surface px-3 py-2.5">
-              <dt className="text-xs text-muted">Tamamlanan</dt>
-              <dd className="text-lg font-semibold text-ink-text">
+            <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2.5">
+              <dt className="text-xs text-muted-foreground">Tamamlanan</dt>
+              <dd className="text-lg font-semibold text-foreground">
                 {appointments.filter((a) => a.status === "completed").length}
               </dd>
             </div>
-            <div className="flex flex-col gap-1 rounded-lg border border-gold/30 bg-gold-soft px-3 py-2.5">
-              <dt className="text-xs text-muted">Bekleyen</dt>
-              <dd className="text-lg font-semibold text-gold">
+            <div className="flex flex-col gap-1 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2.5">
+              <dt className="text-xs text-muted-foreground">Bekleyen</dt>
+              <dd className="text-lg font-semibold text-yellow-500">
                 {appointments.filter((a) => a.status === "pending").length}
               </dd>
             </div>
-            <div className="flex flex-col gap-1 rounded-lg border border-line bg-surface px-3 py-2.5">
-              <dt className="text-xs text-muted">İptal Edilen</dt>
-              <dd className="text-lg font-semibold text-ink-text">
+            <div className="flex flex-col gap-1 rounded-lg border border-border bg-surface px-3 py-2.5">
+              <dt className="text-xs text-muted-foreground">İptal Edilen</dt>
+              <dd className="text-lg font-semibold text-foreground">
                 {appointments.filter((a) => a.status === "cancelled").length}
               </dd>
             </div>
           </dl>
         </Card>
 
-        <Card className="mt-6" padding="roomy" raised>
+        <Card className="overflow-hidden" padding="snug">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold tracking-tight text-ink-text">
-              Randevular
-            </h2>
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Randevular</h2>
             {state === "ready" ? (
               <Badge tone="neutral">{appointments.length} kayıt</Badge>
             ) : null}
@@ -674,58 +656,43 @@ export default function StudentDetailPage() {
 
           <div className="mt-5">
             {state === "loading" ? (
-              <p className="text-sm text-muted">Yükleniyor...</p>
+              <p className="text-sm text-muted-foreground text-center py-8">Yükleniyor...</p>
             ) : state === "ready" ? (
               appointments.length === 0 ? (
-                <p className="text-sm leading-relaxed text-muted">
+                <p className="text-sm leading-relaxed text-muted-foreground text-center py-8">
                   Henüz randevu bulunmuyor.
                 </p>
               ) : (
-                <ul className="divide-y divide-line">
+                <ul className="divide-y divide-border">
                   {appointments.map((appt) => {
                     const slot = appt.slot;
                     return (
                       <li
                         key={appt.id}
-                        className="flex flex-col gap-2 py-3 sm:flex-row sm:items-start sm:justify-between"
+                        className="py-4"
                       >
-                        <div className="flex flex-col gap-1">
-                          <span className="text-sm font-medium text-ink-text">
-                            {slot ? formatDate(slot.available_date) : "Tarih yok"}
-                          </span>
-                          <span className="text-xs text-muted">
-                            {slot
-                              ? `${formatTime(slot.start_time)} – ${formatTime(slot.end_time)}`
-                              : "Saat bilgisi yok"}
-                          </span>
-                          <div className="mt-1 flex flex-col gap-0.5 text-xs text-muted">
-                            <span>
-                              <span className="text-muted/80">Ders: </span>
-                              {appt.lesson?.trim() || "Belirtilmemiş"}
-                            </span>
-                            <span>
-                              <span className="text-muted/80">Ders Türü: </span>
-                              {lessonModeLabel(appt.lesson_mode)}
-                            </span>
-                            <span>
-                              <span className="text-muted/80">Ders Konusu: </span>
-                              {appt.subject?.trim() || "Belirtilmemiş"}
-                            </span>
-                            <span>
-                              <span className="text-muted/80">Öğretmen Notu: </span>
-                              {appt.notes?.trim() || "Belirtilmemiş"}
-                            </span>
-                            <span>
-                              <span className="text-muted/80">Oluşturulma Tarihi: </span>
-                              {appt.created_at ? formatDateTime(appt.created_at) : "Belirtilmemiş"}
-                            </span>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground">
+                              {slot ? formatDate(slot.available_date) : "Tarih yok"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {slot
+                                ? `${formatTime(slot.start_time)} – ${formatTime(slot.end_time)}`
+                                : "Saat bilgisi yok"}
+                            </p>
+                            <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                              <p><span className="font-medium text-foreground">Ders: </span>{appt.lesson?.trim() || "Belirtilmemiş"}</p>
+                              <p><span className="font-medium text-foreground">Ders Türü: </span>{lessonModeLabel(appt.lesson_mode)}</p>
+                              <p><span className="font-medium text-foreground">Ders Konusu: </span>{appt.subject?.trim() || "Belirtilmemiş"}</p>
+                              <p><span className="font-medium text-foreground">Öğretmen Notu: </span>{appt.notes?.trim() || "Belirtilmemiş"}</p>
+                              <p><span className="font-medium text-foreground">Oluşturulma Tarihi: </span>{appt.created_at ? formatDateTime(appt.created_at) : "Belirtilmemiş"}</p>
+                            </div>
                           </div>
+                          <Badge tone={appt.status === "pending" ? "gold" : "neutral"}>
+                            {appt.status ? (STATUS_LABEL[appt.status] ?? appt.status) : "Durum yok"}
+                          </Badge>
                         </div>
-                        <Badge tone="neutral">
-                          {appt.status
-                            ? (STATUS_LABEL[appt.status] ?? appt.status)
-                            : "Durum yok"}
-                        </Badge>
                       </li>
                     );
                   })}
@@ -735,305 +702,229 @@ export default function StudentDetailPage() {
           </div>
         </Card>
 
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+        <div className="flex flex-col gap-3 sm:flex-row">
           <SecondaryButton
-            onClick={() => router.push("/panel/ogretmen")}
+            onClick={() => router.push("/panel/ogretmen/randevular")}
             className="w-full sm:w-auto"
           >
-            Öğretmen Paneline Dön
+            Randevulara Dön
           </SecondaryButton>
         </div>
+
+        {editOpen ? (
+          <Modal
+            open={editOpen}
+            onClose={closeEdit}
+            title="Öğrenciyi Düzenle"
+            subtitle={profile?.full_name?.trim()}
+            submitLabel="Kaydet"
+            submitting={editSubmitting}
+            onSubmit={handleEditSubmit}
+            panelRef={editPanelRef}
+            error={editError}
+          >
+            <TextInput
+              id="edit-student-full-name"
+              name="full_name"
+              type="text"
+              label="Ad Soyad"
+              placeholder="ör. Mehmet Demir"
+              value={editForm.full_name}
+              onChange={handleEditFieldChange}
+              disabled={editSubmitting}
+              autoComplete="name"
+              required
+            />
+
+            <TextInput
+              id="edit-student-phone"
+              name="phone"
+              type="tel"
+              label="Telefon (isteğe bağlı)"
+              placeholder="ör. +90 5xx xxx xx xx"
+              value={editForm.phone}
+              onChange={handleEditFieldChange}
+              disabled={editSubmitting}
+              autoComplete="tel"
+            />
+          </Modal>
+        ) : null}
+
+        {toggleOpen && profile ? (
+          <Modal
+            open={toggleOpen}
+            onClose={closeToggle}
+            title={profile.is_active ? "Öğrenciyi Pasife Al" : "Öğrenciyi Aktif Et"}
+            subtitle={profile.full_name?.trim()}
+            submitLabel={profile.is_active ? "Pasife Al" : "Aktif Et"}
+            submitting={toggleSubmitting}
+            onSubmit={handleToggleSubmit}
+            panelRef={togglePanelRef}
+            error={toggleError}
+          >
+            <p className="text-sm leading-relaxed text-foreground">
+              {profile.is_active
+                ? "Bu öğrenciyi pasife almak istediğinize emin misiniz? Öğrenci sisteme giriş yapamayacak ve yeni randevu oluşturamayacak. Mevcut ve geçmiş randevular etkilenmez."
+                : "Bu öğrenciyi tekrar aktif etmek istediğinize emin misiniz?"}
+            </p>
+          </Modal>
+        ) : null}
+
+        {deleteOpen ? (
+          <Modal
+            open={deleteOpen}
+            onClose={closeDelete}
+            title="Öğrenciyi Listenizden Kaldır"
+            subtitle={profile?.full_name?.trim()}
+            submitLabel="Kaldır"
+            submitting={deleteSubmitting}
+            onSubmit={handleDeleteSubmit}
+            panelRef={deletePanelRef}
+            error={deleteError}
+            success={deleteMessage}
+            danger
+          >
+            <p className="text-sm leading-relaxed text-foreground">
+              <span className="font-semibold text-foreground">
+                {profile?.full_name?.trim() || "İsimsiz"}
+              </span>
+              {" adlı öğrenciyi listenizden kaldırmak istediğinize emin misiniz?"}
+            </p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Öğrencinin hesabı, profili ya da geçmiş randevu kayıtları
+              silinmez. Yalnızca sizin aranızdaki öğretmen-öğrenci ilişkisi
+              kaldırılır. Eğer öğrenci başka bir öğretmene de bağlıysa, o
+              öğretmenin öğrencisi olarak kalır. pending/confirmed aktif
+              randevu varsa bu işlem engellenir.
+            </p>
+          </Modal>
+        ) : null}
+
+        {toast ? (
+          <div
+            role="status"
+            aria-live="polite"
+            className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-2.5 text-sm text-green-400 shadow-lg"
+          >
+            {toast}
+          </div>
+        ) : null}
       </div>
-
-      {/* Düzenle modalı */}
-      {editOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 py-6 sm:items-center sm:py-10"
-          onClick={(e) => {
-            if (editSubmitting) return;
-            if (e.target === e.currentTarget) setEditOpen(false);
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="edit-student-modal-title"
-        >
-          <div
-            ref={editPanelRef}
-            tabIndex={-1}
-            className="flex w-full max-w-md flex-col overflow-y-auto rounded-2xl border border-line bg-surface outline-none"
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
-              <div className="flex flex-col gap-0.5">
-                <h2
-                  id="edit-student-modal-title"
-                  className="text-base font-semibold tracking-tight text-ink-text"
-                >
-                  Öğrenciyi Düzenle
-                </h2>
-                {profile?.full_name?.trim() ? (
-                  <span className="text-xs text-subtle">
-                    {profile.full_name.trim()}
-                  </span>
-                ) : null}
-              </div>
-              <SecondaryButton
-                onClick={closeEdit}
-                disabled={editSubmitting}
-                className="w-auto px-4 py-2 text-xs"
-                aria-label="Kapat"
-              >
-                Kapat
-              </SecondaryButton>
-            </div>
-
-            <form
-              onSubmit={handleEditSubmit}
-              className="flex flex-col gap-4 px-5 py-5 sm:px-6"
-            >
-              {editError ? (
-                <p
-                  role="alert"
-                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-                >
-                  {editError}
-                </p>
-              ) : null}
-
-              <TextInput
-                id="edit-student-full-name"
-                name="full_name"
-                type="text"
-                label="Ad Soyad"
-                placeholder="ör. Mehmet Demir"
-                value={editForm.full_name}
-                onChange={handleEditFieldChange}
-                disabled={editSubmitting}
-                autoComplete="name"
-                required
-              />
-
-              <TextInput
-                id="edit-student-phone"
-                name="phone"
-                type="tel"
-                label="Telefon (isteğe bağlı)"
-                placeholder="ör. +90 5xx xxx xx xx"
-                value={editForm.phone}
-                onChange={handleEditFieldChange}
-                disabled={editSubmitting}
-                autoComplete="tel"
-              />
-
-              <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:justify-end">
-                <SecondaryButton
-                  type="button"
-                  onClick={closeEdit}
-                  disabled={editSubmitting}
-                  className="w-full sm:w-auto"
-                >
-                  Vazgeç
-                </SecondaryButton>
-                <PrimaryButton
-                  type="submit"
-                  disabled={editSubmitting}
-                  className="w-full sm:w-auto"
-                >
-                  {editSubmitting ? "Kaydediliyor..." : "Kaydet"}
-                </PrimaryButton>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Pasife Al / Aktif Et modalı */}
-      {toggleOpen && profile ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 py-6 sm:items-center sm:py-10"
-          onClick={(e) => {
-            if (toggleSubmitting) return;
-            if (e.target === e.currentTarget) setToggleOpen(false);
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="toggle-student-modal-title"
-        >
-          <div
-            ref={togglePanelRef}
-            tabIndex={-1}
-            className="flex w-full max-w-md flex-col overflow-y-auto rounded-2xl border border-line bg-surface outline-none"
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
-              <div className="flex flex-col gap-0.5">
-                <h2
-                  id="toggle-student-modal-title"
-                  className="text-base font-semibold tracking-tight text-ink-text"
-                >
-                  {profile.is_active ? "Öğrenciyi Pasife Al" : "Öğrenciyi Aktif Et"}
-                </h2>
-                {profile.full_name?.trim() ? (
-                  <span className="text-xs text-subtle">
-                    {profile.full_name.trim()}
-                  </span>
-                ) : null}
-              </div>
-              <SecondaryButton
-                onClick={closeToggle}
-                disabled={toggleSubmitting}
-                className="w-auto px-4 py-2 text-xs"
-                aria-label="Kapat"
-              >
-                Kapat
-              </SecondaryButton>
-            </div>
-
-            <form
-              onSubmit={handleToggleSubmit}
-              className="flex flex-col gap-4 px-5 py-5 sm:px-6"
-            >
-              {toggleError ? (
-                <p
-                  role="alert"
-                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-                >
-                  {toggleError}
-                </p>
-              ) : null}
-
-              <p className="text-sm leading-relaxed text-ink-text">
-                {profile.is_active
-                  ? "Bu öğrenciyi pasife almak istediğinize emin misiniz? Öğrenci sisteme giriş yapamayacak ve yeni randevu oluşturamayacak. Mevcut ve geçmiş randevular etkilenmez."
-                  : "Bu öğrenciyi tekrar aktif etmek istediğinize emin misiniz?"}
-              </p>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                <SecondaryButton
-                  type="button"
-                  onClick={closeToggle}
-                  disabled={toggleSubmitting}
-                  className="w-full sm:w-auto"
-                >
-                  Vazgeç
-                </SecondaryButton>
-                <PrimaryButton
-                  type="submit"
-                  disabled={toggleSubmitting}
-                  className="w-full sm:w-auto"
-                >
-                  {toggleSubmitting
-                    ? "Güncelleniyor..."
-                    : profile.is_active
-                      ? "Pasife Al"
-                      : "Aktif Et"}
-                </PrimaryButton>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Sil (soft-sil) modalı */}
-      {deleteOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 py-6 sm:items-center sm:py-10"
-          onClick={(e) => {
-            if (deleteSubmitting) return;
-            if (e.target === e.currentTarget) setDeleteOpen(false);
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="delete-student-modal-title"
-        >
-          <div
-            ref={deletePanelRef}
-            tabIndex={-1}
-            className="flex w-full max-w-md flex-col overflow-y-auto rounded-2xl border border-red-500/30 bg-surface outline-none"
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-red-500/30 px-5 py-4 sm:px-6">
-              <h2
-                id="delete-student-modal-title"
-                className="text-base font-semibold tracking-tight text-red-300"
-              >
-                Öğrenciyi Listenizden Kaldır
-              </h2>
-              <SecondaryButton
-                onClick={closeDelete}
-                disabled={deleteSubmitting}
-                className="w-auto px-4 py-2 text-xs"
-                aria-label="Kapat"
-              >
-                Kapat
-              </SecondaryButton>
-            </div>
-
-            <form
-              onSubmit={handleDeleteSubmit}
-              className="flex flex-col gap-4 px-5 py-5 sm:px-6"
-            >
-              {deleteError ? (
-                <p
-                  role="alert"
-                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-                >
-                  {deleteError}
-                </p>
-              ) : null}
-
-              {deleteMessage ? (
-                <p
-                  role="status"
-                  className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-300"
-                >
-                  {deleteMessage}
-                </p>
-              ) : null}
-
-              <p className="text-sm leading-relaxed text-ink-text">
-                <span className="font-semibold text-ink-text">
-                  {profile?.full_name?.trim() || "İsimsiz"}
-                </span>
-                {" adlı öğrenciyi listenizden kaldırmak istediğinize emin misiniz?"}
-              </p>
-              <p className="text-xs leading-relaxed text-muted">
-                Öğrencinin hesabı, profili ya da geçmiş randevu kayıtları
-                silinmez. Yalnızca sizin aranızdaki öğretmen-öğrenci ilişkisi
-                kaldırılır. Eğer öğrenci başka bir öğretmene de bağlıysa, o
-                öğretmenin öğrencisi olarak kalır. pending/confirmed aktif
-                randevu varsa bu işlem engellenir.
-              </p>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                <SecondaryButton
-                  type="button"
-                  onClick={closeDelete}
-                  disabled={deleteSubmitting}
-                  className="w-full sm:w-auto"
-                >
-                  Vazgeç
-                </SecondaryButton>
-                <PrimaryButton
-                  type="submit"
-                  disabled={deleteSubmitting}
-                  className="w-full sm:w-auto rounded-full border border-red-500/30 bg-red-500/10 text-red-300 transition-colors duration-200 hover:bg-red-500/20 active:bg-red-500/30 focus-visible:ring-red-400/60"
-                >
-                  {deleteSubmitting ? "Kaldırılıyor..." : "Kaldır"}
-                </PrimaryButton>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
-
-      {toast ? (
-        <div
-          role="status"
-          aria-live="polite"
-          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-300 shadow-lg"
-        >
-          {toast}
-        </div>
-      ) : null}
     </main>
+  );
+}
+
+function Modal({
+  open,
+  onClose,
+  title,
+  subtitle,
+  submitLabel,
+  submitting,
+  onSubmit,
+  panelRef,
+  error,
+  success,
+  danger,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  subtitle?: string | null;
+  submitLabel: string;
+  submitting: boolean;
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  panelRef: React.RefObject<HTMLDivElement | null>;
+  error?: string | null;
+  success?: string | null;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 py-6 sm:items-center sm:py-10"
+      onClick={(e) => {
+        if (submitting) return;
+        if (e.target === e.currentTarget) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
+    >
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className={`flex w-full max-w-md flex-col overflow-y-auto rounded-2xl border ${
+          danger ? "border-red-500/30" : "border-border"
+        } bg-surface outline-none`}
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+          <div className="flex flex-col gap-0.5">
+            <h2 id="modal-title" className="text-base font-semibold tracking-tight text-foreground">
+              {title}
+            </h2>
+            {subtitle ? (
+              <span className="text-xs text-muted-foreground">{subtitle}</span>
+            ) : null}
+          </div>
+          <SecondaryButton
+            onClick={onClose}
+            disabled={submitting}
+            className="w-auto px-4 py-2 text-xs"
+            aria-label="Kapat"
+          >
+            Kapat
+          </SecondaryButton>
+        </div>
+
+        <form onSubmit={onSubmit} className="flex flex-col gap-4 px-5 py-5 sm:px-6">
+          {error ? (
+            <p
+              role="alert"
+              className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
+            >
+              {error}
+            </p>
+          ) : null}
+          {success ? (
+            <p
+              role="status"
+              className="rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400"
+            >
+              {success}
+            </p>
+          ) : null}
+
+          {children}
+
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <SecondaryButton
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="w-full sm:w-auto"
+            >
+              Vazgeç
+            </SecondaryButton>
+            <PrimaryButton
+              type="submit"
+              disabled={submitting}
+              className={[
+                "w-full sm:w-auto",
+                danger
+                  ? "rounded-full border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                  : "",
+              ].join(" ")}
+            >
+              {submitting ? (danger ? "Kaldırılıyor..." : "Kaydediliyor...") : submitLabel}
+            </PrimaryButton>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 

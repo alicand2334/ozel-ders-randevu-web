@@ -136,7 +136,8 @@ export async function GET(request: Request): Promise<Response> {
     const { data: pastRows, error: pastError } = await admin
       .from("availability")
       .select("id, status")
-      .lt("available_date", today);
+      .lt("available_date", today)
+      .is("deleted_at", null);
 
     if (pastError) {
       console.log(
@@ -183,7 +184,8 @@ export async function GET(request: Request): Promise<Response> {
     const { error: deleteError, count: deletedCount } = await admin
       .from("availability")
       .delete({ count: "exact" })
-      .in("id", ids);
+      .in("id", ids)
+      .is("deleted_at", null);
 
     if (deleteError) {
       console.log(

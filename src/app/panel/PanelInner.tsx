@@ -12,13 +12,13 @@ import {
   formatNotificationDate,
   formatTime,
   timePartOfIso,
+  addMinutesToTime,
 } from "@/lib/datetime";
 import {
   Badge,
   Card,
   PrimaryButton,
   SecondaryButton,
-  SectionTitle,
 } from "@/components/ui";
 
 type TeacherCardRow = {
@@ -67,9 +67,9 @@ type AppointmentRow = {
 
 const APPT_STATUS_LABEL: Record<AppointmentStatus, string> = {
   pending: "Beklemede",
-  confirmed: "Onayland─▒",
-  cancelled: "─░ptal Edildi",
-  completed: "Tamamland─▒",
+  confirmed: "Onaylandı",
+  cancelled: "İptal Edildi",
+  completed: "Tamamlandı",
 };
 
 function appointmentDisplayInfo(appt: AppointmentRow): {
@@ -83,7 +83,6 @@ function appointmentDisplayInfo(appt: AppointmentRow): {
 
   const startTime =
     appt.requested_start_time ?? timePartOfIso(appt.start_at) ?? null;
-  const endTime = timePartOfIso(appt.end_at) ?? null;
 
   const lessonCount =
     appt.lesson_count !== null && appt.lesson_count > 0
@@ -101,6 +100,13 @@ function appointmentDisplayInfo(appt: AppointmentRow): {
     totalDurationMinutes =
       lessonCount * appt.lesson_duration_minutes +
       (lessonCount - 1) * appt.break_duration_minutes;
+  }
+
+  let endTime: string | null = null;
+  if (startTime && totalDurationMinutes !== null && totalDurationMinutes > 0) {
+    endTime = addMinutesToTime(startTime, totalDurationMinutes);
+  } else {
+    endTime = timePartOfIso(appt.end_at) ?? null;
   }
 
   return {
@@ -203,10 +209,6 @@ export default function PanelPage() {
         return;
       }
 
-      // Student rol├╝ i├ğin server-side aktiflik do─şrulamas─▒. profilden
-      // client-side okunan is_active bilgisine g├╝venilmez; ├Â─şrenciyi
-      // koruyan /api/auth/student-guard u├ğ noktas─▒ server taraf─▒ndan
-      // profiles.is_active de─şerini yeniden do─şrular.
       if (data?.role === "student") {
         try {
           const { data: sessionData } = await supabase.auth.getSession();
@@ -226,8 +228,6 @@ export default function PanelPage() {
             }
           }
         } catch {
-          // Guard ula┼ş─▒lamzsa mevcut ak─▒┼ş─▒ bozma; client-side is_active
-          // do─şru olsa bile yine de devam et.
         }
       }
 
@@ -246,8 +246,6 @@ export default function PanelPage() {
     const selectColumns =
       "id, full_name, specialization, bio, avatar_url, is_active";
 
-    // Tercih edilen kaynak: public_teacher_profiles g├Âr├╝n├╝m├╝.
-    // ├çal─▒┼şm─▒orsa (├Ârn. g├Âr├╝n├╝m yok) profiles tablosuna d├╝┼ş.
     const { data: viewData, error: viewError } = await supabase
       .from("public_teacher_profiles")
       .select(selectColumns)
@@ -260,7 +258,6 @@ export default function PanelPage() {
       return;
     }
 
-    // G├Âr├╝n├╝m mevcut de─şilse profiles tablosuna d├Ân.
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
       .select(selectColumns)
@@ -407,7 +404,7 @@ export default function PanelPage() {
   if (loading || (user && roleLoading)) {
     return (
       <main className="flex min-h-dvh items-center justify-center px-6">
-        <p className="text-sm text-muted">Y├╝kleniyor...</p>
+        <p className="text-sm text-muted">Yükleniyor...</p>
       </main>
     );
   }
@@ -471,201 +468,113 @@ export default function PanelPage() {
     }
   }
 
+  const handleGoBack = () => {
+    router.push("/ogrenci");
+  };
+
+  const formatDate = (isoDate: string) => {
+    const [year, month, day] = isoDate.split("-");
+    return `${day}.${month}.${year}`;
+  };
+
+  const formatCreatedAt = (isoDate: string) => {
+    const date = new Date(isoDate);
+    return date.toLocaleString("tr-TR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const getApptStatusBadgeStyle = (status: AppointmentStatus) => {
+    switch (status) {
+      case "completed":
+        return "bg-green-500/20 text-green-400 border border-green-500/30";
+      case "cancelled":
+        return "bg-red-500/20 text-red-400 border border-red-500/30";
+      case "confirmed":
+        return "bg-blue-500/20 text-blue-400 border border-blue-500/30";
+      default:
+        return "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30";
+    }
+  };
+
   return (
-    <main className="flex min-h-dvh flex-col items-center px-6 py-16 sm:px-10">
-      <div className="w-full max-w-2xl overflow-x-hidden">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <SectionTitle
-            align="left"
-            eyebrow="├û─şrenci Paneli"
-            title="├û─şretmenlerimiz"
-            description="Randevu olu┼şturmak i├ğin bir ├Â─şretmenin profilini g├Âr├╝nt├╝leyin."
-          />
-          <div ref={dropdownRef} className="relative w-full sm:w-auto">
-            <button
-              type="button"
-              aria-label="Bildirimler"
-              aria-expanded={isNotificationsOpen}
-              aria-haspopup="true"
-              onClick={() => setIsNotificationsOpen((p) => !p)}
-              className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center self-start rounded-xl border border-line bg-ink text-ink-text transition-colors duration-200 hover:border-line-strong focus:border-gold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-ink focus:ring-gold/60"
+    <main className="flex min-h-dvh flex-col px-6 py-8 sm:px-10">
+      <div className="w-full max-w-4xl mx-auto space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold text-foreground">Randevu Sistemi</h1>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end gap-3">
+            <SecondaryButton onClick={handleGoBack} className="w-full sm:w-auto">
+              Ana Menüye Dön
+            </SecondaryButton>
+            <PrimaryButton
+              onClick={handleSignOut}
+              className="w-full sm:w-auto bg-red-600 hover:bg-red-700 active:bg-red-800 focus-visible:ring-red-500 text-white"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-5 w-5"
-                aria-hidden="true"
-              >
-                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-              </svg>
-              {unreadCount > 0 ? (
-                <span className="absolute -right-1.5 -top-1.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full border border-red-500/40 bg-red-500 px-1 text-[0.625rem] font-semibold leading-none text-white shadow-sm">
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </span>
-              ) : null}
-            </button>
-
-            {isNotificationsOpen ? (
-              <div
-                role="dialog"
-                aria-label="Bildirimler"
-                className="fixed left-4 right-4 top-20 z-50 sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-[360px] sm:max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-line bg-surface shadow-2xl shadow-ink-deep/40 backdrop-blur-sm"
-              >
-                <div className="flex items-center justify-between gap-3 border-b border-line bg-ink/60 px-4 py-3">
-                  <h2 className="text-sm font-semibold tracking-tight text-ink-text">
-                    Bildirimler
-                  </h2>
-                  {unreadCount > 0 ? (
-                    <span className="inline-flex min-w-[1.5rem] items-center justify-center rounded-full bg-gold-soft px-2 py-0.5 text-xs font-semibold text-gold">
-                      {unreadCount}
-                    </span>
-                  ) : null}
-                </div>
-
-                <div className="max-h-[60vh] overflow-y-auto sm:max-h-[420px]">
-                  {notificationsLoading ? (
-                    <p className="px-4 py-6 text-sm text-muted">
-                      Bildirimler y├╝kleniyor...
-                    </p>
-                  ) : notificationsError ? (
-                    <p
-                      role="alert"
-                      className="px-4 py-4 text-sm text-red-300"
-                    >
-                      {notificationsError}
-                    </p>
-                  ) : notifications.length === 0 ? (
-                    <p className="px-4 py-6 text-sm leading-relaxed text-muted">
-                      Hen├╝z bildiriminiz bulunmuyor.
-                    </p>
-                  ) : (
-                    <ul className="divide-y divide-line">
-                      {notifications.slice(0, 10).map((n) => (
-                        <li
-                          key={n.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => {
-                            if (!n.ok) void markNotificationRead(n.id);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              if (!n.ok) void markNotificationRead(n.id);
-                            }
-                          }}
-                          className="flex cursor-pointer items-start gap-2.5 px-4 py-3 transition-colors duration-150 hover:bg-ink/40 focus:bg-ink/40 focus:outline-none"
-                        >
-                          <span
-                            aria-hidden="true"
-                            className={[
-                              "mt-1.5 h-2 w-2 shrink-0 rounded-full",
-                              n.ok ? "bg-subtle" : "bg-gold",
-                            ].join(" ")}
-                          />
-                          <div className="flex flex-1 flex-col gap-0.5">
-                            <span className="text-sm font-medium text-ink-text">
-                              {n.title?.trim() || "Bildirim"}
-                            </span>
-                            {n.body && n.body.trim() ? (
-                              <span className="text-xs leading-relaxed text-muted">
-                                {n.body.trim()}
-                              </span>
-                            ) : null}
-                            <span className="text-xs text-subtle">
-                              {formatNotificationDate(n.created_at)}
-                            </span>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            ) : null}
+              Çıkış Yap
+            </PrimaryButton>
           </div>
         </div>
 
-        <Card className="mt-6 sm:mt-8" padding="roomy" raised>
+        {/* ÖĞRETMENLER */}
+        <Card className="overflow-hidden" padding="snug">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold tracking-tight text-ink-text">
-              ├û─şretmenlerimiz
-            </h2>
-            {teachersState === "ready" ? (
-              <Badge tone="neutral">{teachers.length} kay─▒t</Badge>
-            ) : null}
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Öğretmenler</h2>
+            {teachersState === "ready" && (
+              <Badge tone="neutral">{teachers.length} kayıt</Badge>
+            )}
           </div>
 
           <div className="mt-5">
             {teachersState === "loading" ? (
-              <p className="text-sm text-muted">├û─şretmenler y├╝kleniyor...</p>
+              <p className="text-sm text-muted text-center py-8">Öğretmenler yükleniyor...</p>
             ) : teachersState === "error" ? (
-              <div className="flex flex-col gap-3">
-                <p
-                  role="alert"
-                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-                >
-                  ├û─şretmenler y├╝klenemedi:{" "}
-                  {teachersError ?? "Bilinmeyen hata"}
+              <div className="flex flex-col gap-3 text-center py-4">
+                <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                  Öğretmenler yüklenemedi: {teachersError ?? "Bilinmeyen hata"}
                 </p>
-                <SecondaryButton
-                  onClick={handleTeachersRetry}
-                  className="w-full sm:w-auto"
-                >
+                <SecondaryButton onClick={handleTeachersRetry} className="w-full sm:w-auto mx-auto">
                   Tekrar Dene
                 </SecondaryButton>
               </div>
             ) : teachers.length === 0 ? (
-              <p className="text-sm leading-relaxed text-muted">
-                ┼Şu anda aktif ├Â─şretmen bulunmuyor.
+              <p className="text-sm leading-relaxed text-muted text-center py-8">
+                Şu anda aktif öğretmen bulunmuyor.
               </p>
             ) : (
               <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {teachers.map((t) => (
-                  <li
-                    key={t.id}
-                    className="flex flex-col gap-3 rounded-2xl border border-line bg-ink/40 p-4 transition-colors duration-200 hover:border-line-strong"
-                  >
-                    <div className="flex items-start gap-3">
-                      <TeacherAvatar
-                        name={t.full_name}
-                        url={t.avatar_url}
-                      />
-                      <div className="flex flex-1 flex-col gap-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-sm font-medium text-ink-text">
-                            {t.full_name?.trim() || "├û─şretmen"}
+                  <li key={t.id} className="flex flex-col gap-4 p-4 sm:p-5 rounded-2xl border border-border bg-card transition-colors duration-200 hover:border-yellow-500/50">
+                    <div className="flex items-start gap-4">
+                      <TeacherAvatar name={t.full_name} url={t.avatar_url} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg font-bold text-foreground truncate">
+                            {t.full_name?.trim() || "Öğretmen"}
                           </span>
                           <Badge tone="gold">Aktif</Badge>
                         </div>
-                        <span className="text-xs text-muted">
-                          {t.specialization?.trim() ||
-                            "Bran┼ş belirtilmedi"}
-                        </span>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {t.specialization?.trim() || "Branş belirtilmedi"}
+                        </p>
+                        {t.bio && t.bio.trim() && (
+                          <p className="mt-3 text-sm text-muted-foreground line-clamp-2">
+                            {t.bio.trim()}
+                          </p>
+                        )}
                       </div>
                     </div>
-
-                    {t.bio && t.bio.trim() ? (
-                      <p className="text-xs leading-relaxed text-muted line-clamp-3">
-                        {t.bio.trim()}
-                      </p>
-                    ) : null}
-
-                    <div className="mt-auto">
-                      <Link
-                        href={`/panel/ogretmenler/${t.id}`}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-line bg-transparent px-3 py-2 text-xs font-semibold tracking-wide text-ink-text transition-colors duration-200 hover:bg-surface hover:border-line-strong active:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-ink focus-visible:ring-gold min-h-11 touch-manipulation select-none"
-                        aria-label={`${t.full_name?.trim() || "├û─şretmen"} profilini g├Âr`}
-                      >
-                        Profili G├Âr
-                      </Link>
-                    </div>
+                    <Link
+                      href={`/panel/ogretmenler/${t.id}`}
+                      className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors duration-200 bg-yellow-500 hover:bg-yellow-600 text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-yellow-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    >
+                      Profili Gör
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -673,68 +582,62 @@ export default function PanelPage() {
           </div>
         </Card>
 
-        <Card className="mt-5 sm:mt-6" padding="roomy" raised>
+        {/* BİLDİRİMLER */}
+        <Card className="overflow-hidden" padding="snug">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold tracking-tight text-ink-text">
-              Bildirimler
-            </h2>
-            {!notificationsLoading && !notificationsError ? (
-              <Badge tone="neutral">
-                {notifications.slice(0, 5).length} kay─▒t
-              </Badge>
-            ) : null}
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Bildirimler</h2>
+            {!notificationsLoading && !notificationsError && (
+              <Badge tone="neutral">{notifications.length} kayıt</Badge>
+            )}
           </div>
 
           <div className="mt-5">
             {notificationsLoading ? (
-              <p className="text-sm text-muted">Bildirimler y├╝kleniyor...</p>
+              <p className="text-sm text-muted text-center py-8">Bildirimler yükleniyor...</p>
             ) : notificationsError ? (
-              <p
-                role="alert"
-                className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-              >
-                Bildirimler y├╝klenemedi: {notificationsError}
+              <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                Bildirimler yüklenemedi: {notificationsError}
               </p>
             ) : notifications.length === 0 ? (
-              <p className="text-sm leading-relaxed text-muted">
-                Hen├╝z bildiriminiz bulunmuyor.
+              <p className="text-sm leading-relaxed text-muted text-center py-8">
+                Henüz bildiriminiz bulunmuyor.
               </p>
             ) : (
-                <ul className="divide-y divide-line">
-                  {notifications.slice(0, 5).map((n) => (
-                    <li
-                      key={n.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => {
+              <ul className="divide-y divide-border">
+                {notifications.map((n) => (
+                  <li
+                    key={n.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => {
+                      if (!n.ok) void markNotificationRead(n.id);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
                         if (!n.ok) void markNotificationRead(n.id);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          if (!n.ok) void markNotificationRead(n.id);
-                        }
-                      }}
-                      className="flex cursor-pointer flex-col gap-1 py-3 transition-colors duration-150 hover:bg-ink/40 focus:bg-ink/40 focus:outline-none"
-                    >
-                    <div className="flex items-start gap-2.5">
+                      }
+                    }}
+                    className="py-4 transition-colors duration-150 hover:bg-ink/40 focus:bg-ink/40 focus:outline-none"
+                  >
+                    <div className="flex items-start gap-3">
                       <span
                         aria-hidden="true"
                         className={[
                           "mt-1.5 h-2 w-2 shrink-0 rounded-full",
-                          n.ok ? "bg-subtle" : "bg-gold",
+                          n.ok ? "bg-subtle" : "bg-yellow-500",
                         ].join(" ")}
                       />
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-medium text-ink-text">
+                      <div className="flex-1 flex-col gap-1">
+                        <span className="text-sm font-medium text-foreground">
                           {n.title?.trim() || "Bildirim"}
                         </span>
                         {n.body && n.body.trim() ? (
-                          <span className="text-xs leading-relaxed text-muted">
+                          <span className="text-sm text-muted-foreground">
                             {n.body.trim()}
                           </span>
                         ) : null}
-                        <span className="text-xs text-subtle">
+                        <span className="text-xs text-muted-foreground">
                           {formatNotificationDate(n.created_at)}
                         </span>
                       </div>
@@ -746,121 +649,111 @@ export default function PanelPage() {
           </div>
         </Card>
 
-        <Card className="mt-5 sm:mt-6" padding="roomy" raised>
+        {/* RANDEVULARIM */}
+        <Card className="overflow-hidden" padding="snug">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="text-base font-semibold tracking-tight text-ink-text">
-              Randevular─▒m
-            </h2>
-            {myApptState === "ready" ? (
-              <Badge tone="neutral">{myAppointments.length} kay─▒t</Badge>
-            ) : null}
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Randevularım</h2>
+            {myApptState === "ready" && (
+              <Badge tone="neutral">{myAppointments.length} kayıt</Badge>
+            )}
           </div>
 
-          {myApptActionError ? (
-            <p
-              role="alert"
-              className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-            >
+          {myApptActionError && (
+            <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
               {myApptActionError}
-            </p>
-          ) : null}
+            </div>
+          )}
 
           <div className="mt-5">
             {myApptState === "loading" ? (
-              <p className="text-sm text-muted">Y├╝kleniyor...</p>
+              <p className="text-sm text-muted text-center py-8">Yükleniyor...</p>
             ) : myApptState === "error" ? (
-              <div className="flex flex-col gap-3">
-                <p
-                  role="alert"
-                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-                >
-                  Randevular y├╝klenemedi: {myApptError ?? "Bilinmeyen hata"}
+              <div className="flex flex-col gap-3 text-center py-4">
+                <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                  Randevular yüklenemedi: {myApptError ?? "Bilinmeyen hata"}
                 </p>
-                <SecondaryButton
-                  onClick={handleMyApptRetry}
-                  className="w-full sm:w-auto"
-                >
+                <SecondaryButton onClick={handleMyApptRetry} className="w-full sm:w-auto mx-auto">
                   Tekrar Dene
                 </SecondaryButton>
               </div>
             ) : myAppointments.length === 0 ? (
-              <p className="text-sm leading-relaxed text-muted">
-                Hen├╝z bir randevunuz yok. Bir ├Â─şretmenin profilinden randevu
-                olu┼şturdu─şunuzda burada listelenecek.
+              <p className="text-sm leading-relaxed text-muted text-center py-8">
+                Henüz bir randevunuz yok. Bir öğretmenin profilinden randevu
+                oluşturduğunuzda burada listelenecek.
               </p>
             ) : (
-              <ul className="divide-y divide-line">
+              <ul className="divide-y divide-border">
                 {myAppointments.map((appt) => {
                   const info = appointmentDisplayInfo(appt);
                   const isCancellable =
                     appt.status === "pending" || appt.status === "confirmed";
                   const isBusy = myApptActionId === appt.id;
-                  return (
-                    <li
-                      key={appt.id}
-                      className="flex flex-col gap-3 py-4"
-                    >
-                      <div className="flex flex-col gap-1">
-                        {appt.lesson ? (
-                          <span className="text-xs font-medium text-subtle">
-                            Ders: {appt.lesson}
-                          </span>
-                        ) : null}
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-ink-text">
-                            {appt.subject?.trim() || "Konu belirtilmedi"}
-                          </span>
-                          <Badge tone="neutral">
-                            {APPT_STATUS_LABEL[appt.status]}
-                          </Badge>
-                        </div>
-                        <span className="text-xs text-muted">
-                          {(() => {
-                            const date = info.date
-                              ? formatDateLong(info.date)
-                              : null;
-                            const start = info.startTime
-                              ? formatTime(info.startTime)
-                              : null;
-                            const end = info.endTime
-                              ? formatTime(info.endTime)
-                              : null;
-                            const pieces: string[] = [];
-                            if (date) pieces.push(date);
-                            if (start && end) {
-                              pieces.push(`${start} ÔÇô ${end}`);
-                            } else if (start) {
-                              pieces.push(`${start} ÔÇô ?`);
-                            }
-                            if (info.lessonCount) {
-                              pieces.push(`${info.lessonCount} ders`);
-                            }
-                            if (info.totalDurationMinutes) {
-                              pieces.push(
-                                formatDuration(info.totalDurationMinutes),
-                              );
-                            }
-                            return pieces.length > 0
-                              ? pieces.join(" ┬À ")
-                              : "Randevu bilgisi eksik";
-                          })()}
-                        </span>
-                        {appt.notes && appt.notes.trim() ? (
-                          <span className="mt-1 text-xs leading-relaxed text-subtle">
-                            Not: {appt.notes.trim()}
-                          </span>
-                        ) : null}
-                      </div>
 
-                      {isCancellable ? (
-                        <SecondaryButton
-                          onClick={() => cancelAppointment(appt)}
-                          disabled={isBusy}
-                          className="w-full sm:w-auto"
-                        >
-                          {isBusy ? "─░ptal Ediliyor..." : "─░ptal Et"}
-                        </SecondaryButton>
-                      ) : null}
+                  return (
+                    <li key={appt.id} className="py-5 relative">
+                      <span
+                        className={`absolute top-5 right-5 shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium border ${getApptStatusBadgeStyle(appt.status)}`}
+                      >
+                        {APPT_STATUS_LABEL[appt.status]}
+                      </span>
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between pr-40 sm:pr-0">
+                        <div className="flex-1 min-w-0">
+                          {appt.lesson && (
+                            <span className="text-xs font-medium text-muted-foreground">
+                              Ders: {appt.lesson}
+                            </span>
+                          )}
+                          <h3 className="mt-1 text-lg font-bold text-foreground">
+                            {appt.subject?.trim() || "Konu belirtilmedi"}
+                          </h3>
+                          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-foreground">Tarih:</span>
+                              <span>
+                                {info.date ? formatDateLong(info.date) : "Belirtilmemiş"}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-foreground">Saat:</span>
+                              <span>
+                                {info.startTime && info.endTime
+                                  ? `${formatTime(info.startTime)} – ${formatTime(info.endTime)}`
+                                  : info.startTime
+                                  ? `${formatTime(info.startTime)} – ?`
+                                  : "Belirtilmemiş"}
+                              </span>
+                            </div>
+                            {info.lessonCount && (
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-foreground">Ders Sayısı:</span>
+                                <span>{info.lessonCount} ders</span>
+                              </div>
+                            )}
+                            {info.totalDurationMinutes && (
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium text-foreground">Toplam Süre:</span>
+                                <span>{formatDuration(info.totalDurationMinutes)}</span>
+                              </div>
+                            )}
+                          </div>
+                          {appt.notes && appt.notes.trim() && (
+                            <div className="mt-3 flex items-start gap-2 text-sm text-muted-foreground">
+                              <span className="font-medium text-foreground mt-0.5">Not:</span>
+                              <span className="text-muted-foreground">{appt.notes.trim()}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {isCancellable && (
+                          <SecondaryButton
+                            onClick={() => cancelAppointment(appt)}
+                            disabled={isBusy}
+                            className="mt-4 shrink-0 w-full sm:w-auto"
+                          >
+                            {isBusy ? "İptal Ediliyor..." : "İptal Et"}
+                          </SecondaryButton>
+                        )}
+                      </div>
                     </li>
                   );
                 })}
@@ -868,20 +761,7 @@ export default function PanelPage() {
             )}
           </div>
         </Card>
-
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-          <PrimaryButton onClick={handleSignOut} className="w-full sm:w-auto">
-            ├ç─▒k─▒┼ş Yap
-          </PrimaryButton>
-          <SecondaryButton
-            onClick={() => router.push("/")}
-            className="w-full sm:w-auto"
-          >
-            Ana Sayfa
-          </SecondaryButton>
-        </div>
       </div>
-
     </main>
   );
 }
@@ -904,10 +784,10 @@ function TeacherAvatar({
     return (
       <Image
         src={url}
-        alt={name?.trim() ? name.trim() : "├û─şretmen"}
+        alt={name?.trim() ? name.trim() : "Öğretmen"}
         width={48}
         height={48}
-        className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-line object-cover"
+        className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border object-cover"
         unoptimized
       />
     );
@@ -915,7 +795,7 @@ function TeacherAvatar({
   return (
     <span
       aria-hidden="true"
-      className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-line bg-ink text-base font-semibold text-gold"
+      className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-base font-semibold text-black"
     >
       {initialsOf(name)}
     </span>
@@ -927,13 +807,13 @@ function translateCancelError(error: {
   message?: string;
 }): string {
   if (error.code === "P0003") {
-    return "Bu randevu iptal edilemez. Yaln─▒zca beklemede veya onaylanm─▒┼ş randevular─▒ iptal edebilirsiniz.";
+    return "Bu randevu iptal edilemez. Yalnızca beklemede veya onaylanmış randevuları iptal edebilirsiniz.";
   }
   if (error.code === "42501") {
     return "Bu randevuyu iptal etme yetkiniz yok.";
   }
-  if (error.code === "23505") {
-    return "Bu i┼şlem ├ğak─▒┼şma nedeniyle yap─▒lamad─▒. L├╝tfen listeyi yenileyip tekrar deneyin.";
+  if (error.code === "23503") {
+    return "Bu işlem çakışma nedeniyle yapılamadı. Lütfen listeyi yenileyip tekrar deneyin.";
   }
-  return error.message ?? "Randevu iptal edilemedi. L├╝tfen tekrar deneyin.";
+  return error.message ?? "Randevu iptal edilemedi. Lütfen tekrar deneyin.";
 }

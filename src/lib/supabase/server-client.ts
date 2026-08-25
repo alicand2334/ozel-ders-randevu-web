@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { fetch as undiciFetch } from "undici";
 
 function getEnvOrThrow(name: string): string {
   const value = process.env[name];
@@ -33,12 +34,88 @@ export function createServiceClient() {
   // Authorization çakışıp geçersiz kombinasyon oluşabiliyordu). Bu yüzden
   // global header override yapılmaz; supabase-js varsayılan davranışına
   // bırakılır.
-  return createClient(url, serviceRoleKey, {
+  console.log(
+    "SERVICE_CLIENT_FETCH=",
+    undiciFetch === undefined
+      ? "UNDEFINED"
+      : typeof undiciFetch === "function"
+        ? "undiciFn"
+        : typeof undiciFetch,
+    "IS_GLOBAL_FETCH=",
+    (undiciFetch as unknown) === (globalThis.fetch as unknown),
+    "UNDICI_NAME=",
+    (undiciFetch as unknown as { name?: string })?.name ?? "YOK",
+  );
+  const client = createClient(url, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
+    // Next.js Route Handler içinde `globalThis.fetch` patch'lenmiştir;
+    // DELETE metodu için bu patch `init` nesnesini bozup supabase-js
+    // `auth.admin.deleteUser()` çağrısının `{}` ile reject olmasına
+    // (AuthRetryableFetchError, status 0) yol açıyor. Bağımsız Node CLI'da
+    // aynı çağrı sorunsuz çalıştığından kök neden Next.js fetch patch'i.
+    // Bu yüzden service-role client'a Next.js patch'inden geçmemiş saf
+    // undici fetch'i verilir. Yalnızca createServiceClient'a uygulanır;
+    // createAuthVerifyClient (token doğrulama) olduğu gibi bırakılır.
+    global: {
+      fetch: inspectingFetch as unknown as typeof globalThis.fetch,
+    },
   });
+  console.log("CREATE_SERVICE_CLIENT_USES_UNDICI=", undiciFetch === (globalThis as unknown as { fetch?: unknown }).fetch ? false : true, "UNDICI_FN_NAME=", (undiciFetch as unknown as { name?: string })?.name ?? "YOK");
+
+  return client;
+}
+
+// GECICI TEŞHIS: deleteUser() çağrısının GoTrue'ya gönderdiği gerçek request'i
+// loglar. Hicbir seyi degistirmeden aynen undici'ye devreder. Silinecek.
+function inspectingFetch(
+  input: Parameters<typeof undiciFetch>[0],
+  init?: Parameters<typeof undiciFetch>[1],
+): ReturnType<typeof undiciFetch> {
+  try {
+    const url =
+      typeof input === "string"
+        ? input
+        : (input as { url?: string })?.url ?? String(input);
+    const method =
+      (init as { method?: string } | undefined)?.method?.toUpperCase() ??
+      "GET";
+    if (method === "DELETE" && url.includes("/admin/users/")) {
+      const headersIn = (init as { headers?: Record<string, string> } | undefined)
+        ?.headers;
+      const bodyRaw = (init as { body?: unknown } | undefined)?.body;
+      const bodyStr =
+        typeof bodyRaw === "string"
+          ? bodyRaw
+          : bodyRaw === undefined || bodyRaw === null
+            ? "UNDEFINED"
+            : (() => {
+                try {
+                  return JSON.stringify(bodyRaw);
+                } catch {
+                  return "INSPECT_FAILED";
+                }
+              })();
+      console.error("[DELETE INSPECT]", {
+        url,
+        method,
+        headers: headersIn ? { ...headersIn } : undefined,
+        bodyRawType: typeof bodyRaw,
+        bodyStr,
+        bodyLength:
+          typeof bodyRaw === "string"
+            ? bodyRaw.length
+            : bodyRaw === undefined || bodyRaw === null
+              ? -1
+              : -2,
+      });
+    }
+  } catch {
+    // inspect asla isteği bozmasın
+  }
+  return undiciFetch(input as never, init as never);
 }
 
 // auth.getUser(token) çağrısı için kullanılan anon-key'li client. Service-role

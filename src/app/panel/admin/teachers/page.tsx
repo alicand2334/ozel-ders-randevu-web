@@ -802,24 +802,24 @@ export default function AdminTeachersPage() {
           payload?.error ?? "Öğretmen silinirken bir hata oluştu.",
         );
         setDeleteSubmitting(false);
-        return;
+        return
       }
 
-      setTeachers((prev) => prev.filter((row) => row.id !== deleteTarget.id));
-      setToast(`Öğretmen silindi: ${expectedName}`);
-      setDeleteSubmitting(false);
-      setDeleteTarget(null);
-      setDeleteConfirmName("");
-      setDeleteError(null);
+      setTeachers((prev) => prev.filter((row) => row.id !== deleteTarget.id))
+      setToast(`Öğretmen silindi: ${expectedName}`)
+      setDeleteSubmitting(false)
+      setDeleteTarget(null)
+      setDeleteConfirmName("")
+      setDeleteError(null)
     } catch {
-      setDeleteError("Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.");
-      setDeleteSubmitting(false);
+      setDeleteError("Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.")
+      setDeleteSubmitting(false)
     }
   }
 
   async function handleSignOut() {
-    await supabase.auth.signOut();
-    router.replace("/giris");
+    await supabase.auth.signOut()
+    router.replace("/giris")
   }
 
   if (loading || (user && roleLoading)) {
@@ -827,16 +827,16 @@ export default function AdminTeachersPage() {
       <main className="flex min-h-dvh items-center justify-center px-6">
         <p className="text-sm text-muted">Yükleniyor...</p>
       </main>
-    );
+    )
   }
 
   if (!user || !allowed) {
-    return null;
+    return null
   }
 
   return (
-    <main className="flex min-h-dvh flex-col items-center px-6 py-16 sm:px-10">
-      <div className="w-full max-w-2xl overflow-x-hidden">
+    <main className="flex min-h-dvh flex-col px-6 py-8 sm:px-10">
+      <div className="w-full max-w-4xl mx-auto space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <SectionTitle
             align="left"
@@ -852,11 +852,9 @@ export default function AdminTeachersPage() {
           </PrimaryButton>
         </div>
 
-        <Card className="mt-6 sm:mt-8" padding="roomy" raised>
+        <Card className="overflow-hidden" padding="snug">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-base font-semibold tracking-tight text-ink-text">
-              Öğretmen Listesi
-            </h2>
+            <h2 className="text-xl font-semibold tracking-tight text-foreground">Öğretmen Listesi</h2>
             <div className="flex items-center gap-3">
               {state === "ready" ? (
                 <Badge tone="neutral">{filtered.length} kayıt</Badge>
@@ -878,8 +876,8 @@ export default function AdminTeachersPage() {
               placeholder="Ad, telefon veya branşa göre ara"
               value={search}
               onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
+                setSearch(e.target.value)
+                setPage(1)
               }}
               aria-label="Öğretmen ara"
             />
@@ -887,35 +885,34 @@ export default function AdminTeachersPage() {
 
           <div className="mt-5">
             {state === "loading" ? (
-              <p className="text-sm text-muted">Yükleniyor...</p>
+              <p className="text-sm text-muted-foreground text-center py-8">Yükleniyor...</p>
             ) : state === "error" ? (
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3 text-center py-4">
                 <p
                   role="alert"
-                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
+                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
                 >
                   Öğretmenler yüklenemedi: {errorMsg ?? "Bilinmeyen hata"}
                 </p>
                 <SecondaryButton
                   onClick={fetchTeachers}
-                  className="w-full sm:w-auto"
+                  className="w-full sm:w-auto mx-auto"
                 >
                   Tekrar Dene
                 </SecondaryButton>
               </div>
             ) : filtered.length === 0 ? (
-              <p className="text-sm leading-relaxed text-muted">
+              <p className="text-sm leading-relaxed text-muted-foreground text-center py-8">
                 {search.trim()
                   ? "Aramayla eşleşen öğretmen bulunmuyor."
                   : "Henüz öğretmen kaydı bulunmuyor."}
               </p>
             ) : (
               <>
-                {/* Masaüstü: tablo */}
                 <div className="hidden overflow-x-auto sm:block">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-line text-left text-xs uppercase tracking-wide text-subtle">
+                      <tr className="border-b border-border text-left text-xs uppercase tracking-wide text-subtle">
                         <th className="py-2.5 pr-3 font-medium">Öğretmen</th>
                         <th className="px-3 py-2.5 font-medium">Telefon</th>
                         <th className="px-3 py-2.5 font-medium">Durum</th>
@@ -925,7 +922,7 @@ export default function AdminTeachersPage() {
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-line">
+                    <tbody className="divide-y divide-border">
                       {pageRows.map((t) => (
                         <TeacherRowDesktop
                           key={t.id}
@@ -940,8 +937,7 @@ export default function AdminTeachersPage() {
                   </table>
                 </div>
 
-                {/* Mobil: kart listesi */}
-                <ul className="divide-y divide-line sm:hidden">
+                <ul className="divide-y divide-border sm:hidden">
                   {pageRows.map((t) => (
                     <TeacherRowMobile
                       key={t.id}
@@ -954,10 +950,9 @@ export default function AdminTeachersPage() {
                   ))}
                 </ul>
 
-                {/* Sayfalama */}
                 {totalPages > 1 ? (
                   <div className="mt-5 flex items-center justify-between gap-3">
-                    <span className="text-xs text-subtle">
+                    <span className="text-xs text-muted-foreground">
                       Sayfa {safePage} / {totalPages}
                     </span>
                     <div className="flex gap-2">
@@ -985,8 +980,8 @@ export default function AdminTeachersPage() {
           </div>
         </Card>
 
-        <div className="mt-5 flex flex-col gap-3 sm:mt-6 sm:flex-row">
-          <PrimaryButton onClick={handleSignOut} className="w-full sm:w-auto">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <PrimaryButton onClick={handleSignOut} className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white focus-visible:ring-red-500">
             Çıkış Yap
           </PrimaryButton>
           <SecondaryButton
@@ -996,728 +991,401 @@ export default function AdminTeachersPage() {
             Ana Sayfa
           </SecondaryButton>
         </div>
+
+        {modalOpen ? (
+          <Modal
+            open={modalOpen}
+            onClose={closeModal}
+            title="Yeni Öğretmen Ekle"
+            submitLabel="Oluştur"
+            submitting={submitting}
+            onSubmit={handleSubmit}
+            panelRef={modalPanelRef}
+            error={formError}
+            success={formSuccess}
+          >
+            <TextInput
+              id="new-teacher-full-name"
+              name="full_name"
+              label="Ad Soyad"
+              placeholder="ör. Ayşe Yılmaz"
+              value={form.full_name}
+              onChange={handleFieldChange}
+              disabled={submitting}
+              autoComplete="name"
+              required
+            />
+
+            <TextInput
+              id="new-teacher-email"
+              name="email"
+              type="email"
+              label="E-posta"
+              placeholder="ornek@eposta.com"
+              value={form.email}
+              onChange={handleFieldChange}
+              disabled={submitting}
+              autoComplete="email"
+              required
+            />
+
+            <TextInput
+              id="new-teacher-temporary-password"
+              name="temporary_password"
+              type="password"
+              label="Geçici Şifre"
+              placeholder="En az 8 karakter"
+              value={form.temporary_password}
+              onChange={handleFieldChange}
+              disabled={submitting}
+              autoComplete="new-password"
+              hint="Öğretmen ilk girişten sonra değiştirebilir."
+              required
+            />
+
+            <TextInput
+              id="new-teacher-phone"
+              name="phone"
+              type="tel"
+              label="Telefon (isteğe bağlı)"
+              placeholder="ör. +90 5xx xxx xx xx"
+              value={form.phone}
+              onChange={handleFieldChange}
+              disabled={submitting}
+              autoComplete="tel"
+            />
+
+            <TextInput
+              id="new-teacher-specialization"
+              name="specialization"
+              label="Branş"
+              placeholder="ör. Matematik"
+              value={form.specialization}
+              onChange={handleFieldChange}
+              disabled={submitting}
+              required
+            />
+
+            <div className="w-full">
+              <label
+                htmlFor="new-teacher-bio"
+                className="mb-1.5 block text-sm font-medium text-foreground"
+              >
+                Biyografi (isteğe bağlı)
+              </label>
+              <textarea
+                id="new-teacher-bio"
+                name="bio"
+                placeholder="Öğretmen hakkında kısa bilgi"
+                value={form.bio}
+                onChange={handleFieldChange}
+                disabled={submitting}
+                rows={4}
+                className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground transition-colors duration-200 hover:border-yellow-500/50 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 min-h-11 touch-manipulation resize-y disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border"
+              />
+            </div>
+          </Modal>
+        ) : null}
+
+        {pwdTarget ? (
+          <Modal
+            open={true}
+            onClose={closePwdModal}
+            title="Şifre Sıfırla"
+            subtitle={pwdTarget.full_name?.trim()}
+            submitLabel="Şifreyi Sıfırla"
+            submitting={pwdSubmitting}
+            onSubmit={handlePwdSubmit}
+            panelRef={pwdPanelRef}
+            error={pwdError}
+            success={pwdSuccess}
+          >
+            <TextInput
+              id="pwd-new"
+              name="temporary_password"
+              type="password"
+              label="Yeni Geçici Şifre"
+              placeholder="En az 8 karakter"
+              value={pwdValue}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setPwdValue(e.target.value)
+              }
+              disabled={pwdSubmitting}
+              autoComplete="new-password"
+              hint="Öğretmen ilk girişten sonra değiştirebilir."
+              required
+            />
+
+            <TextInput
+              id="pwd-confirm"
+              name="temporary_password_confirm"
+              type="password"
+              label="Yeni Şifre (Tekrar)"
+              placeholder="Aynı şifreyi tekrar girin"
+              value={pwdConfirm}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setPwdConfirm(e.target.value)
+              }
+              disabled={pwdSubmitting}
+              autoComplete="new-password"
+              required
+            />
+          </Modal>
+        ) : null}
+
+        {editTarget ? (
+          <Modal
+            open={true}
+            onClose={closeEditModal}
+            title="Öğretmeni Düzenle"
+            subtitle={editTarget.full_name?.trim()}
+            submitLabel="Kaydet"
+            submitting={editSubmitting}
+            onSubmit={handleEditSubmit}
+            panelRef={editPanelRef}
+            error={editError}
+          >
+            <TextInput
+              id="edit-teacher-full-name"
+              name="full_name"
+              label="Ad Soyad"
+              placeholder="ör. Ayşe Yılmaz"
+              value={editForm.full_name}
+              onChange={handleEditFieldChange}
+              disabled={editSubmitting}
+              autoComplete="name"
+              required
+            />
+
+            <TextInput
+              id="edit-teacher-phone"
+              name="phone"
+              type="tel"
+              label="Telefon (isteğe bağlı)"
+              placeholder="ör. +90 5xx xxx xx xx"
+              value={editForm.phone}
+              onChange={handleEditFieldChange}
+              disabled={editSubmitting}
+              autoComplete="tel"
+            />
+
+            <TextInput
+              id="edit-teacher-specialization"
+              name="specialization"
+              label="Branş"
+              placeholder="ör. Matematik"
+              value={editForm.specialization}
+              onChange={handleEditFieldChange}
+              disabled={editSubmitting}
+              required
+            />
+
+            <div className="w-full">
+              <label
+                htmlFor="edit-teacher-bio"
+                className="mb-1.5 block text-sm font-medium text-foreground"
+              >
+                Biyografi (isteğe bağlı)
+              </label>
+              <textarea
+                id="edit-teacher-bio"
+                name="bio"
+                placeholder="Öğretmen hakkında kısa bilgi"
+                value={editForm.bio}
+                onChange={handleEditFieldChange}
+                disabled={editSubmitting}
+                rows={4}
+                className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground transition-colors duration-200 hover:border-yellow-500/50 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 min-h-11 touch-manipulation resize-y disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border"
+              />
+            </div>
+          </Modal>
+        ) : null}
+
+        {toggleTarget ? (
+          <Modal
+            open={true}
+            onClose={closeToggleActiveModal}
+            title={toggleTarget.is_active !== false ? "Öğretmeni Pasife Al" : "Öğretmeni Aktif Et"}
+            subtitle={toggleTarget.full_name?.trim()}
+            submitLabel={toggleTarget.is_active !== false ? "Pasife Al" : "Aktif Et"}
+            submitting={toggleSubmitting}
+            onSubmit={handleToggleActiveSubmit}
+            panelRef={togglePanelRef}
+            error={toggleError}
+          >
+            <p className="text-sm leading-relaxed text-foreground">
+              {toggleTarget.is_active !== false
+                ? "Bu öğretmeni pasife almak istediğinize emin misiniz? Öğretmen sisteme giriş yapamayacak ve öğrenciler tarafından görüntülenemeyecek."
+                : "Bu öğretmeni tekrar aktif etmek istediğinize emin misiniz?"}
+            </p>
+          </Modal>
+        ) : null}
+
+        {deleteTarget ? (
+          <Modal
+            open={true}
+            onClose={closeDeleteModal}
+            title="Öğretmeni Kalıcı Sil"
+            subtitle={deleteTarget.full_name?.trim()}
+            submitLabel="Kalıcı Sil"
+            submitting={deleteSubmitting}
+            onSubmit={handleDeleteSubmit}
+            panelRef={deletePanelRef}
+            error={deleteError}
+            danger
+          >
+            <p className="text-sm leading-relaxed text-foreground">
+              <span className="font-semibold text-foreground">
+                {deleteTarget.full_name?.trim() || "İsimsiz"}
+              </span>
+              {" adlı öğretmeni kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz."}
+            </p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Öğretmene bağlı müsaitlikler, öğrenci eşleştirmeleri ve ilgili
+              kayıtlar etkilenebilir.
+            </p>
+
+            <TextInput
+              id="delete-teacher-confirm"
+              name="confirm_name"
+              label="Onay için öğretmenin adını birebir yazın"
+              placeholder={deleteTarget.full_name?.trim() || "Öğretmen adı"}
+              value={deleteConfirmName}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                setDeleteConfirmName(e.target.value)
+              }
+              disabled={deleteSubmitting}
+              autoComplete="off"
+            />
+          </Modal>
+        ) : null}
+
+        {toast ? (
+          <div
+            role="status"
+            aria-live="polite"
+            className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-2.5 text-sm text-green-400 shadow-lg"
+          >
+            {toast}
+          </div>
+        ) : null}
       </div>
-
-      {modalOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 py-6 sm:items-center sm:py-10"
-          onClick={(e) => {
-            if (submitting) return;
-            if (e.target === e.currentTarget) {
-              setModalOpen(false);
-            }
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="new-teacher-modal-title"
-        >
-          <div
-            ref={modalPanelRef}
-            tabIndex={-1}
-            className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-y-auto rounded-2xl border border-line bg-surface outline-none"
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
-              <h2
-                id="new-teacher-modal-title"
-                className="text-base font-semibold tracking-tight text-ink-text"
-              >
-                Yeni Öğretmen Ekle
-              </h2>
-              <SecondaryButton
-                onClick={closeModal}
-                disabled={submitting}
-                className="w-auto px-4 py-2 text-xs"
-                aria-label="Kapat"
-              >
-                Kapat
-              </SecondaryButton>
-            </div>
-
-            <form
-              onSubmit={handleSubmit}
-              className="flex flex-col gap-4 px-5 py-5 sm:px-6"
-            >
-              {formError ? (
-                <p
-                  role="alert"
-                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-                >
-                  {formError}
-                </p>
-              ) : null}
-              {formSuccess ? (
-                <p
-                  role="status"
-                  className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-300"
-                >
-                  {formSuccess}
-                </p>
-              ) : null}
-
-              <TextInput
-                id="new-teacher-full-name"
-                name="full_name"
-                label="Ad Soyad"
-                placeholder="ör. Ayşe Yılmaz"
-                value={form.full_name}
-                onChange={handleFieldChange}
-                disabled={submitting}
-                autoComplete="name"
-                required
-              />
-
-              <TextInput
-                id="new-teacher-email"
-                name="email"
-                type="email"
-                label="E-posta"
-                placeholder="ornek@eposta.com"
-                value={form.email}
-                onChange={handleFieldChange}
-                disabled={submitting}
-                autoComplete="email"
-                required
-              />
-
-              <TextInput
-                id="new-teacher-temporary-password"
-                name="temporary_password"
-                type="password"
-                label="Geçici Şifre"
-                placeholder="En az 8 karakter"
-                value={form.temporary_password}
-                onChange={handleFieldChange}
-                disabled={submitting}
-                autoComplete="new-password"
-                hint="Öğretmen ilk girişten sonra değiştirebilir."
-                required
-              />
-
-              <TextInput
-                id="new-teacher-phone"
-                name="phone"
-                type="tel"
-                label="Telefon (isteğe bağlı)"
-                placeholder="ör. +90 5xx xxx xx xx"
-                value={form.phone}
-                onChange={handleFieldChange}
-                disabled={submitting}
-                autoComplete="tel"
-              />
-
-              <TextInput
-                id="new-teacher-specialization"
-                name="specialization"
-                label="Branş"
-                placeholder="ör. Matematik"
-                value={form.specialization}
-                onChange={handleFieldChange}
-                disabled={submitting}
-                required
-              />
-
-              <div className="w-full">
-                <label
-                  htmlFor="new-teacher-bio"
-                  className="mb-1.5 block text-sm font-medium text-ink-text"
-                >
-                  Biyografi (isteğe bağlı)
-                </label>
-                <textarea
-                  id="new-teacher-bio"
-                  name="bio"
-                  placeholder="Öğretmen hakkında kısa bilgi"
-                  value={form.bio}
-                  onChange={handleFieldChange}
-                  disabled={submitting}
-                  rows={4}
-                  className={[
-                    "w-full rounded-xl border border-line bg-ink px-3.5 py-3 text-sm text-ink-text",
-                    "placeholder:text-subtle",
-                    "transition-colors duration-200 hover:border-line-strong",
-                    "focus:border-gold focus:outline-none focus:ring-2 focus:ring-offset-2",
-                    "focus:ring-offset-ink focus:ring-gold/60",
-                    "min-h-11 touch-manipulation resize-y",
-                    "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-line",
-                  ].join(" ")}
-                />
-              </div>
-
-              <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:justify-end">
-                <SecondaryButton
-                  type="button"
-                  onClick={closeModal}
-                  disabled={submitting}
-                  className="w-full sm:w-auto"
-                >
-                  İptal
-                </SecondaryButton>
-                <PrimaryButton
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full sm:w-auto"
-                >
-                  {submitting ? "Öğretmen oluşturuluyor..." : "Oluştur"}
-                </PrimaryButton>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
-
-      {pwdTarget ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 py-6 sm:items-center sm:py-10"
-          onClick={(e) => {
-            if (pwdSubmitting) return;
-            if (e.target === e.currentTarget) {
-              setPwdTarget(null);
-            }
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="pwd-modal-title"
-        >
-          <div
-            ref={pwdPanelRef}
-            tabIndex={-1}
-            className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-y-auto rounded-2xl border border-line bg-surface outline-none"
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
-              <div className="flex flex-col gap-0.5">
-                <h2
-                  id="pwd-modal-title"
-                  className="text-base font-semibold tracking-tight text-ink-text"
-                >
-                  Şifre Sıfırla
-                </h2>
-                {pwdTarget.full_name?.trim() ? (
-                  <span className="text-xs text-subtle">
-                    {pwdTarget.full_name.trim()}
-                  </span>
-                ) : null}
-              </div>
-              <SecondaryButton
-                onClick={closePwdModal}
-                disabled={pwdSubmitting}
-                className="w-auto px-4 py-2 text-xs"
-                aria-label="Kapat"
-              >
-                Kapat
-              </SecondaryButton>
-            </div>
-
-            <form
-              onSubmit={handlePwdSubmit}
-              className="flex flex-col gap-4 px-5 py-5 sm:px-6"
-            >
-              {pwdError ? (
-                <p
-                  role="alert"
-                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-                >
-                  {pwdError}
-                </p>
-              ) : null}
-              {pwdSuccess ? (
-                <p
-                  role="status"
-                  className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-300"
-                >
-                  {pwdSuccess}
-                </p>
-              ) : null}
-
-              <TextInput
-                id="pwd-new"
-                name="temporary_password"
-                type="password"
-                label="Yeni Geçici Şifre"
-                placeholder="En az 8 karakter"
-                value={pwdValue}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setPwdValue(e.target.value)
-                }
-                disabled={pwdSubmitting}
-                autoComplete="new-password"
-                hint="Öğretmen ilk girişten sonra değiştirebilir."
-                required
-              />
-
-              <TextInput
-                id="pwd-confirm"
-                name="temporary_password_confirm"
-                type="password"
-                label="Yeni Şifre (Tekrar)"
-                placeholder="Aynı şifreyi tekrar girin"
-                value={pwdConfirm}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setPwdConfirm(e.target.value)
-                }
-                disabled={pwdSubmitting}
-                autoComplete="new-password"
-                required
-              />
-
-              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-                <SecondaryButton
-                  type="button"
-                  onClick={closePwdModal}
-                  disabled={pwdSubmitting}
-                  className="w-full sm:w-auto"
-                >
-                  İptal
-                </SecondaryButton>
-                <PrimaryButton
-                  type="submit"
-                  disabled={pwdSubmitting}
-                  className="w-full sm:w-auto"
-                >
-                  {pwdSubmitting ? "Şifre güncelleniyor..." : "Şifreyi Sıfırla"}
-                </PrimaryButton>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
-
-      {editTarget ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 py-6 sm:items-center sm:py-10"
-          onClick={(e) => {
-            if (editSubmitting) return;
-            if (e.target === e.currentTarget) {
-              setEditTarget(null);
-            }
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="edit-teacher-modal-title"
-        >
-          <div
-            ref={editPanelRef}
-            tabIndex={-1}
-            className="flex max-h-[90dvh] w-full max-w-lg flex-col overflow-y-auto rounded-2xl border border-line bg-surface outline-none"
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
-              <div className="flex flex-col gap-0.5">
-                <h2
-                  id="edit-teacher-modal-title"
-                  className="text-base font-semibold tracking-tight text-ink-text"
-                >
-                  Öğretmeni Düzenle
-                </h2>
-                {editTarget.full_name?.trim() ? (
-                  <span className="text-xs text-subtle">
-                    {editTarget.full_name.trim()}
-                  </span>
-                ) : null}
-              </div>
-              <SecondaryButton
-                onClick={closeEditModal}
-                disabled={editSubmitting}
-                className="w-auto px-4 py-2 text-xs"
-                aria-label="Kapat"
-              >
-                Kapat
-              </SecondaryButton>
-            </div>
-
-            <form
-              onSubmit={handleEditSubmit}
-              className="flex flex-col gap-4 px-5 py-5 sm:px-6"
-            >
-              {editError ? (
-                <p
-                  role="alert"
-                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-                >
-                  {editError}
-                </p>
-              ) : null}
-
-              <TextInput
-                id="edit-teacher-full-name"
-                name="full_name"
-                label="Ad Soyad"
-                placeholder="ör. Ayşe Yılmaz"
-                value={editForm.full_name}
-                onChange={handleEditFieldChange}
-                disabled={editSubmitting}
-                autoComplete="name"
-                required
-              />
-
-              <TextInput
-                id="edit-teacher-phone"
-                name="phone"
-                type="tel"
-                label="Telefon (isteğe bağlı)"
-                placeholder="ör. +90 5xx xxx xx xx"
-                value={editForm.phone}
-                onChange={handleEditFieldChange}
-                disabled={editSubmitting}
-                autoComplete="tel"
-              />
-
-              <TextInput
-                id="edit-teacher-specialization"
-                name="specialization"
-                label="Branş"
-                placeholder="ör. Matematik"
-                value={editForm.specialization}
-                onChange={handleEditFieldChange}
-                disabled={editSubmitting}
-                required
-              />
-
-              <div className="w-full">
-                <label
-                  htmlFor="edit-teacher-bio"
-                  className="mb-1.5 block text-sm font-medium text-ink-text"
-                >
-                  Biyografi (isteğe bağlı)
-                </label>
-                <textarea
-                  id="edit-teacher-bio"
-                  name="bio"
-                  placeholder="Öğretmen hakkında kısa bilgi"
-                  value={editForm.bio}
-                  onChange={handleEditFieldChange}
-                  disabled={editSubmitting}
-                  rows={4}
-                  className={[
-                    "w-full rounded-xl border border-line bg-ink px-3.5 py-3 text-sm text-ink-text",
-                    "placeholder:text-subtle",
-                    "transition-colors duration-200 hover:border-line-strong",
-                    "focus:border-gold focus:outline-none focus:ring-2 focus:ring-offset-2",
-                    "focus:ring-offset-ink focus:ring-gold/60",
-                    "min-h-11 touch-manipulation resize-y",
-                    "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-line",
-                  ].join(" ")}
-                />
-              </div>
-
-              <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:justify-end">
-                <SecondaryButton
-                  type="button"
-                  onClick={closeEditModal}
-                  disabled={editSubmitting}
-                  className="w-full sm:w-auto"
-                >
-                  Vazgeç
-                </SecondaryButton>
-                <PrimaryButton
-                  type="submit"
-                  disabled={editSubmitting}
-                  className="w-full sm:w-auto"
-                >
-                  {editSubmitting ? "Kaydediliyor..." : "Kaydet"}
-                </PrimaryButton>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
-
-      {toggleTarget ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 py-6 sm:items-center sm:py-10"
-          onClick={(e) => {
-            if (toggleSubmitting) return;
-            if (e.target === e.currentTarget) {
-              setToggleTarget(null);
-            }
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="toggle-teacher-modal-title"
-        >
-          <div
-            ref={togglePanelRef}
-            tabIndex={-1}
-            className="flex w-full max-w-md flex-col overflow-y-auto rounded-2xl border border-line bg-surface outline-none"
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
-              <div className="flex flex-col gap-0.5">
-                <h2
-                  id="toggle-teacher-modal-title"
-                  className="text-base font-semibold tracking-tight text-ink-text"
-                >
-                  {toggleTarget.is_active !== false
-                    ? "Öğretmeni Pasife Al"
-                    : "Öğretmeni Aktif Et"}
-                </h2>
-                {toggleTarget.full_name?.trim() ? (
-                  <span className="text-xs text-subtle">
-                    {toggleTarget.full_name.trim()}
-                  </span>
-                ) : null}
-              </div>
-              <SecondaryButton
-                onClick={closeToggleActiveModal}
-                disabled={toggleSubmitting}
-                className="w-auto px-4 py-2 text-xs"
-                aria-label="Kapat"
-              >
-                Kapat
-              </SecondaryButton>
-            </div>
-
-            <form
-              onSubmit={handleToggleActiveSubmit}
-              className="flex flex-col gap-4 px-5 py-5 sm:px-6"
-            >
-              {toggleError ? (
-                <p
-                  role="alert"
-                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-                >
-                  {toggleError}
-                </p>
-              ) : null}
-
-              <p className="text-sm leading-relaxed text-ink-text">
-                {toggleTarget.is_active !== false
-                  ? "Bu öğretmeni pasife almak istediğinize emin misiniz? Öğretmen sisteme giriş yapamayacak ve öğrenciler tarafından görüntülenemeyecek."
-                  : "Bu öğretmeni tekrar aktif etmek istediğinize emin misiniz?"}
-              </p>
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                <SecondaryButton
-                  type="button"
-                  onClick={closeToggleActiveModal}
-                  disabled={toggleSubmitting}
-                  className="w-full sm:w-auto"
-                >
-                  Vazgeç
-                </SecondaryButton>
-                <PrimaryButton
-                  type="submit"
-                  disabled={toggleSubmitting}
-                  className="w-full sm:w-auto"
-                >
-                  {toggleSubmitting
-                    ? "Güncelleniyor..."
-                    : toggleTarget.is_active !== false
-                      ? "Pasife Al"
-                      : "Aktif Et"}
-                </PrimaryButton>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
-
-      {deleteTarget ? (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 py-6 sm:items-center sm:py-10"
-          onClick={(e) => {
-            if (deleteSubmitting) return;
-            if (e.target === e.currentTarget) {
-              setDeleteTarget(null);
-            }
-          }}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="delete-teacher-modal-title"
-        >
-          <div
-            ref={deletePanelRef}
-            tabIndex={-1}
-            className="flex w-full max-w-md flex-col overflow-y-auto rounded-2xl border border-red-500/40 bg-surface outline-none"
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-red-500/30 px-5 py-4 sm:px-6">
-              <h2
-                id="delete-teacher-modal-title"
-                className="text-base font-semibold tracking-tight text-red-300"
-              >
-                Öğretmeni Kalıcı Sil
-              </h2>
-              <SecondaryButton
-                onClick={closeDeleteModal}
-                disabled={deleteSubmitting}
-                className="w-auto px-4 py-2 text-xs"
-                aria-label="Kapat"
-              >
-                Kapat
-              </SecondaryButton>
-            </div>
-
-            <form
-              onSubmit={handleDeleteSubmit}
-              className="flex flex-col gap-4 px-5 py-5 sm:px-6"
-            >
-              {deleteError ? (
-                <p
-                  role="alert"
-                  className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-                >
-                  {deleteError}
-                </p>
-              ) : null}
-
-              <p className="text-sm leading-relaxed text-ink-text">
-                <span className="font-semibold text-ink-text">
-                  {deleteTarget.full_name?.trim() || "İsimsiz"}
-                </span>
-                {" adlı öğretmeni kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz."}
-              </p>
-              <p className="text-xs leading-relaxed text-muted">
-                Öğretmene bağlı müsaitlikler, öğrenci eşleştirmeleri ve ilgili
-                kayıtlar etkilenebilir.
-              </p>
-
-              <TextInput
-                id="delete-teacher-confirm"
-                name="confirm_name"
-                label="Onay için öğretmenin adını birebir yazın"
-                placeholder={deleteTarget.full_name?.trim() || "Öğretmen adı"}
-                value={deleteConfirmName}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  setDeleteConfirmName(e.target.value)
-                }
-                disabled={deleteSubmitting}
-                autoComplete="off"
-              />
-
-              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                <SecondaryButton
-                  type="button"
-                  onClick={closeDeleteModal}
-                  disabled={deleteSubmitting}
-                  className="w-full sm:w-auto"
-                >
-                  Vazgeç
-                </SecondaryButton>
-                <PrimaryButton
-                  type="submit"
-                  disabled={
-                    deleteSubmitting ||
-                    deleteConfirmName.trim() !==
-                      (deleteTarget.full_name ?? "").trim()
-                  }
-                  className="w-full sm:w-auto rounded-full border border-red-500/30 bg-red-500/10 text-red-300 transition-colors duration-200 hover:bg-red-500/20 active:bg-red-500/30 focus-visible:ring-red-400/60"
-                >
-                  {deleteSubmitting ? "Siliniyor..." : "Kalıcı Sil"}
-                </PrimaryButton>
-              </div>
-            </form>
-          </div>
-        </div>
-      ) : null}
-
-      {toast ? (
-        <div
-          role="status"
-          aria-live="polite"
-          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-sm text-emerald-300 shadow-lg"
-        >
-          {toast}
-        </div>
-      ) : null}
     </main>
-  );
+  )
 }
 
-function Avatar({
-  name,
-  url,
-  size = "default",
+function Modal({
+  open,
+  onClose,
+  title,
+  subtitle,
+  submitLabel,
+  submitting,
+  onSubmit,
+  panelRef,
+  error,
+  success,
+  danger,
+  children,
 }: {
-  name: string | null;
-  url?: string | null;
-  size?: "default" | "large";
+  open: boolean
+  onClose: () => void
+  title: string
+  subtitle?: string | null
+  submitLabel: string
+  submitting: boolean
+  onSubmit: (e: FormEvent<HTMLFormElement>) => void
+  panelRef: React.RefObject<HTMLDivElement | null>
+  error?: string | null
+  success?: string | null
+  danger?: boolean
+  children: React.ReactNode
 }) {
-  const dim = size === "large" ? "h-11 w-11 text-sm" : "h-9 w-9 text-xs";
-  if (url) {
-    return (
-      <Image
-        src={url}
-        alt={name?.trim() ? name.trim() : "Öğretmen"}
-        width={size === "large" ? 44 : 36}
-        height={size === "large" ? 44 : 36}
-        className={[
-          "inline-flex shrink-0 items-center justify-center rounded-full object-cover border border-line",
-          dim,
-        ].join(" ")}
-        unoptimized
-      />
-    );
-  }
+  if (!open) return null
+
   return (
-    <span
-      aria-hidden="true"
-      className={[
-        "inline-flex shrink-0 items-center justify-center rounded-full",
-        "border border-line bg-ink font-semibold text-gold",
-        dim,
-      ].join(" ")}
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 py-6 sm:items-center sm:py-10"
+      onClick={(e) => {
+        if (submitting) return
+        if (e.target === e.currentTarget) onClose()
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modal-title"
     >
-      {initialsOf(name)}
-    </span>
-  );
-}
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className={`flex w-full max-w-lg flex-col overflow-y-auto rounded-2xl border ${
+          danger ? "border-red-500/30" : "border-border"
+        } bg-surface outline-none`}
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+          <div className="flex flex-col gap-0.5">
+            <h2 id="modal-title" className="text-base font-semibold tracking-tight text-foreground">
+              {title}
+            </h2>
+            {subtitle ? (
+              <span className="text-xs text-muted-foreground">{subtitle}</span>
+            ) : null}
+          </div>
+          <SecondaryButton
+            onClick={onClose}
+            disabled={submitting}
+            className="w-auto px-4 py-2 text-xs"
+            aria-label="Kapat"
+          >
+            Kapat
+          </SecondaryButton>
+        </div>
 
-function StatusBadge({ active }: { active: boolean }) {
-  return (
-    <Badge tone={active ? "gold" : "neutral"}>
-      {active ? "Aktif" : "Pasif"}
-    </Badge>
-  );
-}
+        <form onSubmit={onSubmit} className="flex flex-col gap-4 px-5 py-5 sm:px-6">
+          {error ? (
+            <p
+              role="alert"
+              className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
+            >
+              {error}
+            </p>
+          ) : null}
+          {success ? (
+            <p
+              role="status"
+              className="rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400"
+            >
+              {success}
+            </p>
+          ) : null}
 
-function ActionButtons({
-  t,
-  onPwd,
-  onEdit,
-  onToggleActive,
-  onDelete,
-}: {
-  t: TeacherRow;
-  onPwd: (t: TeacherRow) => void;
-  onEdit: (t: TeacherRow) => void;
-  onToggleActive: (t: TeacherRow) => void;
-  onDelete: (t: TeacherRow) => void;
-}) {
-  const isActive = t.is_active !== false;
-  const name = t.full_name?.trim() || "Öğretmen";
+          {children}
 
-  return (
-    <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-      <SecondaryButton
-        onClick={() => onEdit(t)}
-        aria-label={`${name} düzenle`}
-        className="w-full px-3 py-2 text-xs sm:w-auto"
-      >
-        📝 Düzenle
-      </SecondaryButton>
-      <SecondaryButton
-        onClick={() => onPwd(t)}
-        aria-label={`${name} şifresini sıfırla`}
-        className="w-full px-3 py-2 text-xs sm:w-auto"
-      >
-        🔑 Şifre Sıfırla
-      </SecondaryButton>
-      <SecondaryButton
-        onClick={() => onToggleActive(t)}
-        aria-label={
-          isActive ? `${name} pasife al` : `${name} aktif et`
-        }
-        className="w-full px-3 py-2 text-xs sm:w-auto"
-      >
-        {isActive ? "⏸️ Pasife Al" : "▶️ Aktif Et"}
-      </SecondaryButton>
-      <SecondaryButton
-        type="button"
-        onClick={() => onDelete(t)}
-        aria-label={`${name} kalıcı sil`}
-        className="w-full px-3 py-2 text-xs sm:w-auto rounded-full border border-red-500/30 bg-transparent text-red-300 transition-colors duration-200 hover:bg-red-500/10 hover:border-red-500/50 active:bg-red-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-ink focus-visible:ring-red-400/60"
-      >
-        🗑️ Kalıcı Sil
-      </SecondaryButton>
+          <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <SecondaryButton
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className="w-full sm:w-auto"
+            >
+              İptal
+            </SecondaryButton>
+            <PrimaryButton
+              type="submit"
+              disabled={submitting}
+              className={[
+                "w-full sm:w-auto",
+                danger
+                  ? "rounded-full border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20"
+                  : "",
+              ].join(" ")}
+            >
+              {submitting ? (danger ? "Siliniyor..." : "Kaydediliyor...") : submitLabel}
+            </PrimaryButton>
+          </div>
+        </form>
+      </div>
     </div>
-  );
+  )
 }
 
 function TeacherRowDesktop({
@@ -1727,50 +1395,48 @@ function TeacherRowDesktop({
   onToggleActive,
   onDelete,
 }: {
-  t: TeacherRow;
-  onPwd: (t: TeacherRow) => void;
-  onEdit: (t: TeacherRow) => void;
-  onToggleActive: (t: TeacherRow) => void;
-  onDelete: (t: TeacherRow) => void;
+  t: TeacherRow
+  onPwd: (t: TeacherRow) => void
+  onEdit: (t: TeacherRow) => void
+  onToggleActive: (t: TeacherRow) => void
+  onDelete: (t: TeacherRow) => void
 }) {
-  const isActive = t.is_active !== false;
+  const isActive = t.is_active !== false
+  const name = t.full_name?.trim() || "Öğretmen"
+
   return (
-    <tr className="text-ink-text">
+    <tr className="text-foreground">
       <td className="py-3 pr-3">
         <div className="flex items-center gap-3">
-          <Avatar name={t.full_name} url={t.avatar_url} />
-          <div className="flex flex-col">
-            <span className="text-sm font-medium">
-              {t.full_name?.trim() || "İsimsiz"}
-            </span>
-            <span className="text-xs text-subtle">
-              {t.specialization?.trim() || "Branş belirtilmedi"}
-            </span>
+          <Avatar name={t.full_name} url={t.avatar_url} size="default" />
+          <div>
+            <span className="font-medium">{name}</span>
+            {t.specialization?.trim() && (
+              <p className="text-xs text-muted-foreground">{t.specialization.trim()}</p>
+            )}
           </div>
         </div>
       </td>
-      <td className="px-3 py-3 text-xs text-muted">
-        {t.phone?.trim() || "—"}
+      <td className="px-3 py-2.5 text-muted-foreground">{t.phone?.trim() || "—"}</td>
+      <td className="px-3 py-2.5">
+        <Badge tone={isActive ? "gold" : "neutral"}>
+          {isActive ? "Aktif" : "Pasif"}
+        </Badge>
       </td>
-      <td className="px-3 py-3">
-        <StatusBadge active={isActive} />
-      </td>
-      <td className="px-3 py-3 text-xs text-subtle">
+      <td className="px-3 py-2.5 text-muted-foreground">
         {formatDateLongNoWeekday(t.created_at)}
       </td>
-      <td className="px-3 py-3">
-        <div className="flex justify-end">
-          <ActionButtons
-            t={t}
-            onPwd={onPwd}
-            onEdit={onEdit}
-            onToggleActive={onToggleActive}
-            onDelete={onDelete}
-          />
-        </div>
+      <td className="px-3 py-2.5 text-right">
+        <ActionButtonsDesktop
+          t={t}
+          onPwd={onPwd}
+          onEdit={onEdit}
+          onToggleActive={onToggleActive}
+          onDelete={onDelete}
+        />
       </td>
     </tr>
-  );
+  )
 }
 
 function TeacherRowMobile({
@@ -1780,42 +1446,128 @@ function TeacherRowMobile({
   onToggleActive,
   onDelete,
 }: {
-  t: TeacherRow;
-  onPwd: (t: TeacherRow) => void;
-  onEdit: (t: TeacherRow) => void;
-  onToggleActive: (t: TeacherRow) => void;
-  onDelete: (t: TeacherRow) => void;
+  t: TeacherRow
+  onPwd: (t: TeacherRow) => void
+  onEdit: (t: TeacherRow) => void
+  onToggleActive: (t: TeacherRow) => void
+  onDelete: (t: TeacherRow) => void
 }) {
-  const isActive = t.is_active !== false;
+  const isActive = t.is_active !== false
+  const name = t.full_name?.trim() || "Öğretmen"
+
   return (
-    <li className="flex flex-col gap-3 py-4">
+    <li className="py-3">
       <div className="flex items-start gap-3">
-        <Avatar name={t.full_name} url={t.avatar_url} size="large" />
-        <div className="flex flex-1 flex-col gap-0.5">
-          <span className="text-sm font-medium text-ink-text">
-            {t.full_name?.trim() || "İsimsiz"}
-          </span>
-          <span className="text-xs text-subtle">
-            {t.specialization?.trim() || "Branş belirtilmedi"}
-          </span>
-          <span className="text-xs text-muted">
-            {t.phone?.trim() || "Telefon yok"}
-          </span>
-          <div className="mt-1 flex items-center gap-2">
-            <StatusBadge active={isActive} />
-            <span className="text-xs text-subtle">
-              {formatDateLongNoWeekday(t.created_at)}
-            </span>
+        <Avatar name={t.full_name} url={t.avatar_url} size="default" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-medium truncate">{name}</span>
+            <Badge tone={isActive ? "gold" : "neutral"}>
+              {isActive ? "Aktif" : "Pasif"}
+            </Badge>
           </div>
+          {t.specialization?.trim() && (
+            <p className="text-xs text-muted-foreground">{t.specialization.trim()}</p>
+          )}
+          <p className="text-xs text-muted-foreground">{formatDateLongNoWeekday(t.created_at)}</p>
         </div>
       </div>
-      <ActionButtons
-        t={t}
-        onPwd={onPwd}
-        onEdit={onEdit}
-        onToggleActive={onToggleActive}
-        onDelete={onDelete}
-      />
+      <div className="mt-3 flex flex-wrap gap-2">
+        <SecondaryButton onClick={() => onEdit(t)} className="w-full sm:w-auto">Düzenle</SecondaryButton>
+        <SecondaryButton onClick={() => onPwd(t)} className="w-full sm:w-auto">Şifre Sıfırla</SecondaryButton>
+        <SecondaryButton onClick={() => onToggleActive(t)} className="w-full sm:w-auto">{isActive ? "Pasife Al" : "Aktif Et"}</SecondaryButton>
+        <SecondaryButton onClick={() => onDelete(t)} className="w-full sm:w-auto rounded-full border border-red-500/30 bg-transparent text-red-400 hover:bg-red-500/10">Sil</SecondaryButton>
+      </div>
     </li>
-  );
+  )
+}
+
+function Avatar({
+  name,
+  url,
+  size = "default",
+}: {
+  name: string | null
+  url?: string | null
+  size?: "default" | "large"
+}) {
+  const dim = size === "large" ? "h-11 w-11 text-sm" : "h-9 w-9 text-xs"
+  if (url) {
+    return (
+      <Image
+        src={url}
+        alt={name?.trim() ? name.trim() : "Öğretmen"}
+        width={size === "large" ? 44 : 36}
+        height={size === "large" ? 44 : 36}
+        className={[
+          "inline-flex shrink-0 items-center justify-center rounded-full object-cover border border-border",
+          dim,
+        ].join(" ")}
+        unoptimized
+      />
+    )
+  }
+  return (
+    <span
+      aria-hidden="true"
+      className={[
+        "inline-flex shrink-0 items-center justify-center rounded-full",
+        "border border-border bg-yellow-500/20 font-semibold text-black",
+        dim,
+      ].join(" ")}
+    >
+      {initialsOf(name)}
+    </span>
+  )
+}
+
+function ActionButtonsDesktop({
+  t,
+  onPwd,
+  onEdit,
+  onToggleActive,
+  onDelete,
+}: {
+  t: TeacherRow
+  onPwd: (t: TeacherRow) => void
+  onEdit: (t: TeacherRow) => void
+  onToggleActive: (t: TeacherRow) => void
+  onDelete: (t: TeacherRow) => void
+}) {
+  const isActive = t.is_active !== false
+  const name = t.full_name?.trim() || "Öğretmen"
+
+  return (
+    <div className="flex items-center justify-end gap-2">
+      <SecondaryButton
+        onClick={() => onEdit(t)}
+        aria-label={`${name} düzenle`}
+        className="px-3 py-2 text-xs"
+      >
+        Düzenle
+      </SecondaryButton>
+      <SecondaryButton
+        onClick={() => onPwd(t)}
+        aria-label={`${name} şifresini sıfırla`}
+        className="px-3 py-2 text-xs"
+      >
+        Şifre Sıfırla
+      </SecondaryButton>
+      <SecondaryButton
+        onClick={() => onToggleActive(t)}
+        aria-label={isActive ? `${name} pasife al` : `${name} aktif et`}
+        className="px-3 py-2 text-xs"
+      >
+        {isActive ? "Pasife Al" : "Aktif Et"}
+      </SecondaryButton>
+      <SecondaryButton
+        type="button"
+        onClick={() => onDelete(t)}
+        aria-label={`${name} kalıcı sil`}
+        className="px-3 py-2 text-xs rounded-full border border-red-500/30 bg-transparent text-red-400 hover:bg-red-500/10 hover:border-red-500/50"
+      >
+        Sil
+      </SecondaryButton>
+    </div>
+  )
 }

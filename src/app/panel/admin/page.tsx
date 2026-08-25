@@ -12,7 +12,6 @@ import {
   SecondaryButton,
   SectionTitle,
 } from "@/components/ui";
-import { primaryButtonClasses } from "@/components/ui/button-classes";
 
 type FetchState = "loading" | "ready" | "error";
 
@@ -151,8 +150,8 @@ export default function AdminPanelPage() {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col items-center px-6 py-16 sm:px-10">
-      <div className="w-full max-w-2xl overflow-x-hidden">
+    <main className="flex min-h-dvh flex-col px-6 py-8 sm:px-10">
+      <div className="w-full max-w-4xl mx-auto space-y-6">
         <SectionTitle
           align="left"
           eyebrow="Yönetici Paneli"
@@ -161,51 +160,38 @@ export default function AdminPanelPage() {
         />
 
         {state === "error" ? (
-          <Card className="mt-6 sm:mt-8" padding="roomy" raised>
-            <p
-              role="alert"
-              className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-            >
+          <Card className="overflow-hidden border-red-500/30 bg-red-500/10" padding="snug">
+            <p role="alert" className="text-sm text-red-400">
               Yetki bilgisi yüklenemedi: {errorMsg ?? "Bilinmeyen hata"}
             </p>
           </Card>
         ) : (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 sm:gap-5">
+          <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
             {MODULES.map((m) => (
               <Card key={m.key} padding="roomy" raised className="h-full">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-gold">
+                  <span className="block text-xs font-semibold uppercase tracking-[0.18em] text-yellow-500">
                     {m.eyebrow}
                   </span>
                   <Badge tone={m.tone}>Pasif</Badge>
                 </div>
-                <h2 className="mt-3 text-base font-semibold tracking-tight text-ink-text">
+                <h2 className="mt-3 text-base font-semibold tracking-tight text-foreground">
                   {m.title}
                 </h2>
-                <p className="mt-2 text-sm leading-relaxed text-muted">
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   {m.description}
                 </p>
                 <div className="mt-5">
                   {m.key === "teachers" ? (
-                    <Link
-                      href="/panel/admin/teachers"
-                      className={`${primaryButtonClasses} w-full sm:w-auto`}
-                    >
-                      Aç
+                    <Link href="/panel/admin/teachers" className="w-full sm:w-auto">
+                      <PrimaryButton>Aç</PrimaryButton>
                     </Link>
                   ) : m.key === "students" ? (
-                    <Link
-                      href="/panel/admin/students"
-                      className={`${primaryButtonClasses} w-full sm:w-auto`}
-                    >
-                      Aç
+                    <Link href="/panel/admin/students" className="w-full sm:w-auto">
+                      <PrimaryButton>Aç</PrimaryButton>
                     </Link>
                   ) : (
-                    <SecondaryButton
-                      disabled
-                      className="w-full sm:w-auto"
-                      aria-disabled="true"
-                    >
+                    <SecondaryButton disabled className="w-full sm:w-auto">
                       Yakında
                     </SecondaryButton>
                   )}
@@ -215,8 +201,8 @@ export default function AdminPanelPage() {
           </div>
         )}
 
-        <div className="mt-5 flex flex-col gap-3 sm:mt-6 sm:flex-row">
-          <PrimaryButton onClick={handleSignOut} className="w-full sm:w-auto">
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <PrimaryButton onClick={handleSignOut} className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white focus-visible:ring-red-500">
             Çıkış Yap
           </PrimaryButton>
           <SecondaryButton

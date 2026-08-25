@@ -23,8 +23,6 @@ import {
   Card,
   PrimaryButton,
   SecondaryButton,
-  SectionTitle,
-  TextInput,
 } from "@/components/ui";
 
 type TeacherProfile = {
@@ -59,7 +57,7 @@ const LESSON_COUNT_OPTIONS = Array.from(
   (_, i) => i + MIN_LESSON_COUNT,
 );
 
-const START_TIME_STEP_MIN = 15; // başlangıç saati adaylarının granülitesi (dk)
+const START_TIME_STEP_MIN = 15;
 
 const LESSON_OPTIONS = [
   "Matematik",
@@ -118,6 +116,24 @@ export default function TeacherProfilePage() {
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingSuccess, setBookingSuccess] = useState<string | null>(null);
   const [bookedSlotId, setBookedSlotId] = useState<string | null>(null);
+
+  // Auto-dismiss bookingSuccess after 5 seconds
+  useEffect(() => {
+    if (!bookingSuccess) return;
+    const id = window.setTimeout(() => setBookingSuccess(null), 5000);
+    return () => {
+      window.clearTimeout(id);
+    };
+  }, [bookingSuccess]);
+
+  // Auto-dismiss bookingError after 5 seconds
+  useEffect(() => {
+    if (!bookingError) return;
+    const id = window.setTimeout(() => setBookingError(null), 5000);
+    return () => {
+      window.clearTimeout(id);
+    };
+  }, [bookingError]);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -225,10 +241,6 @@ export default function TeacherProfilePage() {
     setSelectedSlotId(null);
     setRequestedStartTime(null);
 
-    // Öğrenci availability_overrides tablosunu doğrudan okuyamaz (RLS).
-    // Efektif müsaitlik server-side birleştirme endpoint'i üzerinden çekilir:
-    // availability + availability_overrides(cancel) birleştirilir ve yalnızca
-    // gerçekten müsait kayıtlar döner.
     let accessToken: string | null = null;
     try {
       const { data: sessionData } = await supabase.auth.getSession();
@@ -423,55 +435,44 @@ export default function TeacherProfilePage() {
       ? generateStartTimes(selectedSlot, lessonCount, teacherSettings)
       : [];
 
-  return (
-    <main className="flex min-h-dvh flex-col items-center px-6 py-16 sm:px-10">
-      <div className="w-full max-w-2xl overflow-x-hidden">
-        <SectionTitle
-          align="left"
-          eyebrow="Öğrenci Paneli"
-          title="Öğretmen Profili"
-          description="Seçtiğiniz öğretmenin bilgilerini burada görüntüleyebilirsiniz."
-        />
+  const handleGoBackToTeachers = () => {
+    router.push("/panel");
+  };
 
-        <div className="mt-5 sm:mt-6">
-          <Link
-            href="/panel"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-gold transition-colors duration-200 hover:text-gold-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-ink focus-visible:ring-gold/60 rounded-full"
-          >
-            <span aria-hidden="true">←</span>
-            Öğretmenlere Dön
-          </Link>
+  const handleGoHome = () => {
+    router.push("/panel");
+  };
+
+  return (
+    <main className="flex min-h-dvh flex-col px-6 py-8 sm:px-10">
+      <div className="w-full max-w-4xl mx-auto space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-bold text-foreground">Öğretmen Profili</h1>
+            <p className="mt-1 text-muted-foreground">Seçtiğiniz öğretmenin bilgilerini burada görüntüleyebilirsiniz.</p>
+          </div>
         </div>
 
-        <Card className="mt-5 sm:mt-6" padding="roomy" raised>
+        <Card className="overflow-hidden" padding="snug">
           {view === "loading" ? (
-            <p className="text-sm text-muted">Öğretmen bilgileri yükleniyor...</p>
+            <p className="text-sm text-muted text-center py-8">Öğretmen bilgileri yükleniyor...</p>
           ) : view === "error" ? (
-            <div className="flex flex-col gap-3">
-              <p
-                role="alert"
-                className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-              >
+            <div className="flex flex-col gap-3 text-center py-4">
+              <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
                 {errorMsg ?? "Profil bilgileri yüklenemedi."}
               </p>
-              <SecondaryButton
-                onClick={() => void fetchProfile()}
-                className="w-full sm:w-auto"
-              >
+              <SecondaryButton onClick={() => void fetchProfile()} className="w-full sm:w-auto mx-auto">
                 Tekrar Dene
               </SecondaryButton>
             </div>
           ) : view === "not-found" ? (
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 text-center py-4">
               <p className="text-sm leading-relaxed text-muted">
                 Aradığınız öğretmen bulunamadı veya artık aktif değil.
               </p>
-              <Link
-                href="/panel"
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-line bg-transparent px-6 py-3 text-sm font-semibold tracking-wide text-ink-text transition-colors duration-200 hover:bg-surface hover:border-line-strong active:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-ink focus-visible:ring-gold min-h-11 touch-manipulation select-none w-full sm:w-auto"
-              >
+              <SecondaryButton onClick={handleGoBackToTeachers} className="w-full sm:w-auto mx-auto">
                 Öğretmenlere Dön
-              </Link>
+              </SecondaryButton>
             </div>
           ) : profile ? (
             <ProfileDetail
@@ -515,169 +516,43 @@ export default function TeacherProfilePage() {
         ) : null}
 
         {profile && slotsShown && (slotsView === "ready" || slotsView === "empty") ? (
-          <Card className="mt-5 sm:mt-6" padding="roomy" raised>
-            <h2 className="text-base font-semibold tracking-tight text-ink-text">
-              Randevu Oluştur
-            </h2>
-            <p className="mt-1.5 text-xs leading-relaxed text-subtle">
-              Bir müsaitlik aralığı seçin, ardından o aralıkta uygun olan bir
-              başlangıç saati belirleyin. Ders sayısını seçip ders konusunu
-              girin.
-            </p>
-
-            {bookingSuccess ? (
-              <p
-                role="status"
-                className="mt-4 rounded-xl border border-gold/30 bg-gold-soft px-3.5 py-2.5 text-sm text-gold"
-              >
-                {bookingSuccess}
-              </p>
-            ) : null}
-
-            {bookingError ? (
-              <p
-                role="alert"
-                className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-              >
-                {bookingError}
-              </p>
-            ) : null}
-
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <div className="flex flex-col gap-1.5">
-                <label
-                  htmlFor="booking-lesson"
-                  className="text-sm font-medium text-ink-text"
-                >
-                  Ders
-                </label>
-                <select
-                  id="booking-lesson"
-                  value={bookingForm.lesson}
-                  onChange={(e) => {
-                    setBookingForm((p) => ({ ...p, lesson: e.target.value }));
-                    setBookingError(null);
-                    setBookingSuccess(null);
-                  }}
-                  disabled={bookingSubmitting || !selectedSlotId}
-                  className={[
-                    "w-full rounded-xl border border-line bg-ink px-3.5 py-3 text-sm text-ink-text",
-                    "transition-colors duration-200 hover:border-line-strong",
-                    "focus:border-gold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-ink focus:ring-gold/60",
-                    "min-h-11 touch-manipulation disabled:opacity-60",
-                  ].join(" ")}
-                >
-                  <option value="" disabled>
-                    Ders seçin
-                  </option>
-                  {LESSON_OPTIONS.map((l) => (
-                    <option key={l} value={l}>
-                      {l}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <TextInput
-                id="booking-subject"
-                type="text"
-                label="Ders Konusu"
-                placeholder="Konu başlığı"
-                value={bookingForm.subject}
-                onChange={(e) => {
-                  setBookingForm((p) => ({ ...p, subject: e.target.value }));
-                  setBookingError(null);
-                  setBookingSuccess(null);
-                }}
-                disabled={bookingSubmitting || !selectedSlotId}
-              />
-            </div>
-
-            <div className="mt-3 flex flex-col gap-1.5">
-              <label
-                htmlFor="booking-lesson-mode"
-                className="text-sm font-medium text-ink-text"
-              >
-                Ders Türü
-              </label>
-              <select
-                id="booking-lesson-mode"
-                value={bookingForm.lessonMode}
-                onChange={(e) => {
-                  setBookingForm((p) => ({
-                    ...p,
-                    lessonMode: e.target.value,
-                  }));
-                  setBookingError(null);
-                  setBookingSuccess(null);
-                }}
-                disabled={bookingSubmitting || !selectedSlotId}
-                className={[
-                  "w-full rounded-xl border border-line bg-ink px-3.5 py-3 text-sm text-ink-text",
-                  "transition-colors duration-200 hover:border-line-strong",
-                  "focus:border-gold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-ink focus:ring-gold/60",
-                  "min-h-11 touch-manipulation disabled:opacity-60",
-                ].join(" ")}
-              >
-                <option value="" disabled>
-                  Ders türü seçin
-                </option>
-                {LESSON_MODE_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-subtle">
-                Online veya Yüz Yüze ders arasında bir seçim yapın.
-              </p>
-            </div>
-
-            <div className="mt-5">
-              <PrimaryButton
-                onClick={() => void handleCreateBooking()}
-                disabled={
-                  bookingSubmitting ||
-                  !selectedSlotId ||
-                  !requestedStartTime ||
-                  !bookingForm.lesson ||
-                  !bookingForm.subject.trim() ||
-                  (bookingForm.lessonMode !== "online" &&
-                    bookingForm.lessonMode !== "in_person")
-                }
-                className="w-full sm:w-auto"
-              >
-                {bookingSubmitting ? "Oluşturuluyor..." : "Randevu Oluştur"}
-              </PrimaryButton>
-              {!selectedSlotId ? (
-                <p className="mt-2 text-xs text-subtle">
-                  Önce bir müsaitlik aralığı ve başlangıç saati seçin.
-                </p>
-              ) : !requestedStartTime ? (
-                <p className="mt-2 text-xs text-subtle">
-                  Lütfen uygun bir başlangıç saati seçin.
-                </p>
-              ) : bookingForm.lessonMode !== "online" &&
-                bookingForm.lessonMode !== "in_person" ? (
-                <p className="mt-2 text-xs text-subtle">
-                  Lütfen ders türünü seçin (Online veya Yüz Yüze).
-                </p>
-              ) : null}
-            </div>
-          </Card>
+          <BookingFormCard
+            bookingForm={bookingForm}
+            bookingSubmitting={bookingSubmitting}
+            bookingError={bookingError}
+            bookingSuccess={bookingSuccess}
+            selectedSlotId={selectedSlotId}
+            requestedStartTime={requestedStartTime}
+            lessonCount={lessonCount}
+            onLessonChange={(e) => {
+              setBookingForm((p) => ({ ...p, lesson: e.target.value }));
+              setBookingError(null);
+              setBookingSuccess(null);
+            }}
+            onSubjectChange={(e) => {
+              setBookingForm((p) => ({ ...p, subject: e.target.value }));
+              setBookingError(null);
+              setBookingSuccess(null);
+            }}
+            onLessonModeChange={(e) => {
+              setBookingForm((p) => ({ ...p, lessonMode: e.target.value }));
+              setBookingError(null);
+              setBookingSuccess(null);
+            }}
+            onSubmit={() => void handleCreateBooking()}
+            disabled={
+              bookingSubmitting ||
+              !selectedSlotId ||
+              !requestedStartTime ||
+              !bookingForm.lesson ||
+              !bookingForm.subject.trim() ||
+              (bookingForm.lessonMode !== "online" && bookingForm.lessonMode !== "in_person")
+            }
+          />
         ) : null}
 
-        <div className="mt-5 sm:mt-6 flex flex-col gap-3 sm:flex-row">
-          <PrimaryButton
-            onClick={() => router.push("/panel")}
-            className="w-full sm:w-auto"
-          >
-            Öğretmenlere Dön
-          </PrimaryButton>
-          <SecondaryButton
-            onClick={() => router.push("/")}
-            className="w-full sm:w-auto"
-          >
+        <div className="flex flex-col gap-3 sm:flex-row justify-end">
+          <SecondaryButton onClick={handleGoHome} className="w-full sm:w-auto">
             Ana Sayfa
           </SecondaryButton>
         </div>
@@ -699,30 +574,26 @@ function ProfileDetail({
   const specialization = profile.specialization?.trim() || "Branş belirtilmedi";
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
         <TeacherAvatar name={profile.full_name} url={profile.avatar_url} />
-        <div className="flex flex-1 flex-col gap-2">
+        <div className="flex-1 min-w-0 flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-semibold tracking-tight text-ink-text sm:text-2xl">
-              {fullName}
-            </h2>
+            <h2 className="text-2xl md:text-3xl font-bold text-foreground truncate">{fullName}</h2>
             <Badge tone="gold">Aktif</Badge>
           </div>
-          <p className="text-sm text-muted">{specialization}</p>
+          <p className="text-base text-muted-foreground">{specialization}</p>
         </div>
       </div>
 
-      <div>
-        <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-subtle">
-          Hakkında
-        </h3>
-        <p className="mt-2 text-sm leading-relaxed text-ink-text">
+      <div className="border-t border-border pt-6">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Hakkında</h3>
+        <p className="mt-2 text-base leading-relaxed text-foreground">
           {profile.bio?.trim() || "Bu öğretmen henüz bir biyografi eklememiş."}
         </p>
       </div>
 
-      <div className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center">
+      <div className="border-t border-border pt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
         <PrimaryButton
           onClick={onShowSlots}
           disabled={slotsShown}
@@ -730,7 +601,7 @@ function ProfileDetail({
         >
           {slotsShown ? "Müsaitlikler Görüntüleniyor" : "Uygun Saatleri Gör"}
         </PrimaryButton>
-        <p className="text-xs text-subtle">
+        <p className="text-sm text-muted-foreground">
           Ders sayısını seçip uygun bir başlangıç saati belirleyin.
         </p>
       </div>
@@ -772,29 +643,24 @@ function AvailabilityPanel({
   const totalsLabel = formatDurationLabel(totalsForCount);
 
   return (
-    <Card className="mt-5 sm:mt-6" padding="roomy" raised>
+    <Card className="overflow-hidden" padding="snug">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-base font-semibold tracking-tight text-ink-text">
-            Müsait Saatler
-          </h2>
-          <p className="mt-1 text-xs leading-relaxed text-muted">
+          <h2 className="text-xl font-semibold tracking-tight text-foreground">Müsait Saatler</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
             {teacherSettings
               ? `Her ders ${teacherSettings.lesson_duration_minutes} dk, dersler arası ${teacherSettings.lesson_break_minutes} dk moladır.`
               : "Öğretmen ders süresi ayarları yükleniyor..."}
           </p>
         </div>
-        {slotsView === "ready" || slotsView === "empty" ? (
+        {(slotsView === "ready" || slotsView === "empty") && (
           <Badge tone="neutral">{slots.length} kayıt</Badge>
-        ) : null}
+        )}
       </div>
 
-      <div className="mt-5">
-        <div className="flex flex-col gap-3 sm:max-w-xs">
-          <label
-            htmlFor="lesson-count"
-            className="text-sm font-medium text-ink-text"
-          >
+      <div className="mt-5 border-t border-border pt-5">
+        <div className="flex flex-col gap-3 w-full sm:max-w-xs">
+          <label htmlFor="lesson-count" className="text-sm font-medium text-foreground">
             Ders Sayısı
           </label>
           <select
@@ -802,45 +668,41 @@ function AvailabilityPanel({
             value={lessonCount}
             onChange={(e) => onLessonChange(Number(e.target.value))}
             disabled={!teacherSettings}
-            className={[
-              "w-full rounded-xl border border-line bg-ink px-3.5 py-3 text-sm text-ink-text",
-              "transition-colors duration-200 hover:border-line-strong",
-              "focus:border-gold focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-ink focus:ring-gold/60",
-              "min-h-11 touch-manipulation disabled:opacity-60",
-            ].join(" ")}
+            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground transition-colors duration-200 hover:border-yellow-500/50 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 min-h-11 touch-manipulation disabled:opacity-60"
           >
             {LESSON_COUNT_OPTIONS.map((n) => (
-              <option key={n} value={n}>
-                {n} ders ·{" "}
-                {teacherSettings
-                  ? formatDurationLabel(totalDurationMinutes(n, teacherSettings))
-                  : "—"}
+              <option
+                key={n}
+                value={n}
+                style={{
+                  backgroundColor: "#1a1a1a",
+                  color: "#ffffff",
+                }}
+              >
+                {n} ders · {teacherSettings ? formatDurationLabel(totalDurationMinutes(n, teacherSettings)) : "—"}
               </option>
             ))}
           </select>
-          <p className="text-xs text-subtle">
+          <p className="text-sm text-muted-foreground">
             Seçilen dersler için toplam süre: {totalsLabel}.
           </p>
         </div>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-5 border-t border-border pt-5">
         {slotsView === "loading" ? (
-          <p className="text-sm text-muted">Müsaitlikler yükleniyor...</p>
+          <p className="text-sm text-muted text-center py-8">Müsaitlikler yükleniyor...</p>
         ) : slotsView === "error" ? (
-          <div className="flex flex-col gap-3">
-            <p
-              role="alert"
-              className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
-            >
+          <div className="flex flex-col gap-3 text-center py-4">
+            <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
               {slotsError ?? "Müsaitlikler yüklenemedi."}
             </p>
-            <SecondaryButton onClick={onRetry} className="w-full sm:w-auto">
+            <SecondaryButton onClick={onRetry} className="w-full sm:w-auto mx-auto">
               Tekrar Dene
             </SecondaryButton>
           </div>
         ) : slotsView === "empty" ? (
-          <p className="text-sm leading-relaxed text-muted">
+          <p className="text-sm leading-relaxed text-muted text-center py-8">
             Bu öğretmenin için şu anda açık müsait saat bulunmuyor.
           </p>
         ) : (
@@ -906,7 +768,7 @@ function SlotsList({
 
   return (
     <div className="flex flex-col gap-4">
-      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {slots.map((slot) => {
           const isSelected = slot.id === selectedSlotId;
           const isBooked = slot.id === bookedSlotId;
@@ -918,28 +780,26 @@ function SlotsList({
                 onClick={() => onSelectSlot(isSelected ? null : slot.id)}
                 aria-pressed={isSelected}
                 className={[
-                  "w-full text-left rounded-2xl border p-4 transition-colors duration-200",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-ink focus-visible:ring-gold/60",
+                  "w-full text-left rounded-2xl border p-4 sm:p-5 transition-colors duration-200",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-yellow-500/60",
                   isBooked
-                    ? "cursor-not-allowed border-line bg-ink/20 opacity-60"
+                    ? "cursor-not-allowed border-border bg-muted/50 opacity-60"
                     : isSelected
-                      ? "border-gold bg-gold-soft"
-                      : "border-line bg-ink/40 hover:border-line-strong",
+                    ? "border-yellow-500 bg-yellow-500/10"
+                    : "border-border bg-card hover:border-yellow-500/50",
                 ].join(" ")}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-ink-text">
+                  <span className="text-base font-semibold text-foreground">
                     {formatDateLongNoWeekday(slot.available_date)}
                   </span>
-                  <Badge tone={isSelected ? "gold" : "neutral"}>
+                  <Badge tone={isSelected ? "gold" : "neutral"} className="text-xs">
                     {formatWeekday(slot.available_date)}
                   </Badge>
                 </div>
-                <div className="mt-2 flex items-center gap-2 text-sm text-muted">
+                <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
                   <span aria-hidden="true">⏱</span>
-                  <span>
-                    {formatTime(slot.start_time)} – {formatTime(slot.end_time)}
-                  </span>
+                  <span>{formatTime(slot.start_time)} – {formatTime(slot.end_time)}</span>
                 </div>
               </button>
             </li>
@@ -948,28 +808,21 @@ function SlotsList({
       </ul>
 
       {selectedSlot ? (
-        <div className="rounded-2xl border border-line p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-subtle">
+        <div className="rounded-2xl border border-border bg-card p-4 sm:p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
             Müsaitlik Aralığı
           </p>
-          <p className="mt-1.5 text-sm text-ink-text">
-            {formatDateLongNoWeekday(selectedSlot.available_date)} ·{" "}
-            {formatWeekday(selectedSlot.available_date)} ·{" "}
-            {formatTime(selectedSlot.start_time)} –{" "}
-            {formatTime(selectedSlot.end_time)}
+          <p className="mt-1.5 text-sm text-foreground">
+            {formatDateLongNoWeekday(selectedSlot.available_date)} · {formatWeekday(selectedSlot.available_date)} · {formatTime(selectedSlot.start_time)} – {formatTime(selectedSlot.end_time)}
           </p>
 
           <div className="mt-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-subtle">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               Başlangıç Saati Seçin
             </p>
             {teacherSettings && availableStartTimes.length === 0 ? (
-              <p
-                role="alert"
-                className="mt-2 text-sm font-medium text-red-300"
-              >
-                Bu ders sayısı bu müsaitlik aralığına sığmıyor. Lütfen daha
-                az ders sayısı veya başka bir aralık deneyin.
+              <p role="alert" className="mt-2 text-sm font-medium text-red-400">
+                Bu ders sayısı bu müsaitlik aralığına sığmıyor. Lütfen daha az ders sayısı veya başka bir aralık deneyin.
               </p>
             ) : (
               <div className="mt-2 flex flex-wrap gap-2">
@@ -979,16 +832,14 @@ function SlotsList({
                     <button
                       key={time}
                       type="button"
-                      onClick={() =>
-                        onSelectStartTime(isSelected ? null : time)
-                      }
+                      onClick={() => onSelectStartTime(isSelected ? null : time)}
                       aria-pressed={isSelected}
                       className={[
-                        "rounded-full border px-3.5 py-2 text-sm transition-colors duration-200",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-ink focus-visible:ring-gold/60",
+                        "rounded-full border px-4 py-2.5 text-sm font-medium transition-colors duration-200",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:ring-yellow-500/60",
                         isSelected
-                          ? "border-gold bg-gold-soft text-ink-text"
-                          : "border-line bg-ink/40 text-ink-text hover:border-line-strong",
+                          ? "border-yellow-500 bg-yellow-500/10 text-foreground"
+                          : "border-border bg-card text-foreground hover:border-yellow-500/50",
                       ].join(" ")}
                     >
                       {formatTime(time)}
@@ -1000,38 +851,160 @@ function SlotsList({
           </div>
 
           {requestedStartTime && computedEnd ? (
-            <div className="mt-4 rounded-xl border border-gold/30 bg-gold-soft p-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-subtle">
+            <div className="mt-4 rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Randevu Özeti
               </p>
-              <p className="mt-1.5 text-sm text-ink-text">
-                Başlangıç: {formatTime(requestedStartTime)} · Bitiş:{" "}
-                {formatTime(computedEnd)}
+              <p className="mt-1.5 text-sm text-foreground">
+                Başlangıç: {formatTime(requestedStartTime)} · Bitiş: {formatTime(computedEnd)}
               </p>
-              <p className="mt-1 text-sm text-muted">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {lessonCount} ders · toplam {formatDurationLabel(totalsForCount)}
               </p>
               {computedBlockedUntil ? (
-                <p className="mt-1 text-xs text-subtle">
-                  Öğretmenin bir sonraki öğrenciye hazır olması:{" "}
-                  {formatTime(computedBlockedUntil)}
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Öğretmenin bir sonraki öğrenciye hazır olması: {formatTime(computedBlockedUntil)}
                 </p>
               ) : null}
             </div>
           ) : (
-            <p className="mt-3 text-xs leading-relaxed text-subtle">
-              Yukarıdaki uygun saatlerden bir başlangıç seçin. Bitiş saati
-              seçilen ders sayısına göre otomatik hesaplanır.
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              Yukarıdaki uygun saatlerden bir başlangıç seçin. Bitiş saati seçilen ders sayısına göre otomatik hesaplanır.
             </p>
           )}
         </div>
       ) : (
-        <p className="text-xs leading-relaxed text-subtle">
-          Bir müsaitlik aralığı seçin; o aralıkta uygun başlangıç saatleri
-          otomatik listelenecektir.
+        <p className="text-sm leading-relaxed text-muted-foreground text-center py-4">
+          Bir müsaitlik aralığı seçin; o aralıkta uygun başlangıç saatleri otomatik listelenecektir.
         </p>
       )}
     </div>
+  );
+}
+
+function BookingFormCard({
+  bookingForm,
+  bookingSubmitting,
+  bookingError,
+  bookingSuccess,
+  selectedSlotId,
+  requestedStartTime,
+  lessonCount,
+  onLessonChange,
+  onSubjectChange,
+  onLessonModeChange,
+  onSubmit,
+  disabled,
+}: {
+  bookingForm: typeof EMPTY_BOOKING_FORM;
+  bookingSubmitting: boolean;
+  bookingError: string | null;
+  bookingSuccess: string | null;
+  selectedSlotId: string | null;
+  requestedStartTime: string | null;
+  lessonCount: number;
+  onLessonChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  onSubjectChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onLessonModeChange: (e: React.ChangeEvent<HTMLSelectElement>) => void;
+  onSubmit: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <Card className="overflow-hidden" padding="snug">
+      <h2 className="text-xl font-semibold tracking-tight text-foreground">Randevu Oluştur</h2>
+      <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+        Bir müsaitlik aralığı seçin, ardından o aralıkta uygun olan bir başlangıç saati belirleyin. Ders sayısını seçip ders konusunu girin.
+      </p>
+
+      {bookingSuccess && (
+        <p role="status" className="mt-4 rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm text-green-400">
+          {bookingSuccess}
+        </p>
+      )}
+
+      {bookingError && (
+        <p role="alert" className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+          {bookingError}
+        </p>
+      )}
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="booking-lesson" className="text-sm font-medium text-foreground">Ders</label>
+          <select
+            id="booking-lesson"
+            value={bookingForm.lesson}
+            onChange={onLessonChange}
+            disabled={bookingSubmitting || !selectedSlotId}
+            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground transition-colors duration-200 hover:border-yellow-500/50 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 min-h-11 touch-manipulation disabled:opacity-60"
+          >
+            <option value="" disabled style={{ backgroundColor: "#1a1a1a", color: "#ffffff" }}>
+              Ders seçin
+            </option>
+            {LESSON_OPTIONS.map((l) => (
+              <option
+                key={l}
+                value={l}
+                style={{ backgroundColor: "#1a1a1a", color: "#ffffff" }}
+              >
+                {l}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="booking-subject" className="text-sm font-medium text-foreground">Ders Konusu</label>
+          <input
+            id="booking-subject"
+            type="text"
+            placeholder="Konu başlığı"
+            value={bookingForm.subject}
+            onChange={onSubjectChange}
+            disabled={bookingSubmitting || !selectedSlotId}
+            className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground transition-colors duration-200 hover:border-yellow-500/50 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 min-h-11 touch-manipulation disabled:opacity-60 placeholder:text-muted-foreground"
+          />
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-col gap-1.5">
+        <label htmlFor="booking-lesson-mode" className="text-sm font-medium text-foreground">Ders Türü</label>
+        <select
+          id="booking-lesson-mode"
+          value={bookingForm.lessonMode}
+          onChange={onLessonModeChange}
+          disabled={bookingSubmitting || !selectedSlotId}
+          className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-foreground transition-colors duration-200 hover:border-yellow-500/50 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 min-h-11 touch-manipulation disabled:opacity-60"
+        >
+          <option value="" disabled style={{ backgroundColor: "#1a1a1a", color: "#ffffff" }}>
+            Ders türü seçin
+          </option>
+          {LESSON_MODE_OPTIONS.map((opt) => (
+            <option
+              key={opt.value}
+              value={opt.value}
+              style={{ backgroundColor: "#1a1a1a", color: "#ffffff" }}
+            >
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground">Online veya Yüz Yüze ders arasında bir seçim yapın.</p>
+      </div>
+
+      <div className="mt-5">
+        <PrimaryButton onClick={onSubmit} disabled={disabled} className="w-full sm:w-auto">
+          {bookingSubmitting ? "Oluşturuluyor..." : "Randevu Oluştur"}
+        </PrimaryButton>
+        {!selectedSlotId ? (
+          <p className="mt-2 text-sm text-muted-foreground">Önce bir müsaitlik aralığı ve başlangıç saati seçin.</p>
+        ) : !requestedStartTime ? (
+          <p className="mt-2 text-sm text-muted-foreground">Lütfen uygun bir başlangıç saati seçin.</p>
+        ) : bookingForm.lessonMode !== "online" && bookingForm.lessonMode !== "in_person" ? (
+          <p className="mt-2 text-sm text-muted-foreground">Lütfen ders türünü seçin (Online veya Yüz Yüze).</p>
+        ) : null}
+      </div>
+    </Card>
   );
 }
 
@@ -1049,7 +1022,7 @@ function TeacherAvatar({
         alt={name?.trim() ? name.trim() : "Öğretmen"}
         width={96}
         height={96}
-        className="inline-flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl border border-line object-cover"
+        className="inline-flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl border border-border object-cover"
         unoptimized
       />
     );
@@ -1057,7 +1030,7 @@ function TeacherAvatar({
   return (
     <span
       aria-hidden="true"
-      className="inline-flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl border border-line bg-ink text-2xl font-semibold text-gold"
+      className="inline-flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl border border-border bg-yellow-500/20 text-2xl font-semibold text-black"
     >
       {initialsOf(name)}
     </span>
@@ -1071,31 +1044,21 @@ function initialsOf(name: string | null): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-function translateProfileError(error: {
-  code?: string;
-  message?: string;
-}): string {
+function translateProfileError(error: { code?: string; message?: string }): string {
   if (error.code === "42501") {
     return "Bu işlem için yetkiniz yok. Lütfen tekrar giriş yapın.";
   }
   if (error.code === "42P01") {
     return "Profil kaynağı geçici olarak kullanılamıyor. Lütfen daha sonra tekrar deneyin.";
   }
-  return (
-    error.message ?? "Profil bilgileri yüklenemedi. Lütfen tekrar deneyin."
-  );
+  return error.message ?? "Profil bilgileri yüklenemedi. Lütfen tekrar deneyin.";
 }
 
-function translateSlotsError(error: {
-  code?: string;
-  message?: string;
-}): string {
+function translateSlotsError(error: { code?: string; message?: string }): string {
   if (error.code === "42501") {
     return "Müsaitlik bilgilerini görmek için yetkiniz yok. Lütfen tekrar giriş yapın.";
   }
-  return (
-    error.message ?? "Müsaitlikler yüklenemedi. Lütfen tekrar deneyin."
-  );
+  return error.message ?? "Müsaitlikler yüklenemedi. Lütfen tekrar deneyin.";
 }
 
 type TeacherSettings = {
@@ -1104,28 +1067,18 @@ type TeacherSettings = {
   student_buffer_minutes: number;
 };
 
-function totalDurationMinutes(
-  lessonCount: number,
-  settings: TeacherSettings,
-): number {
+function totalDurationMinutes(lessonCount: number, settings: TeacherSettings): number {
   const lessons = Math.max(MIN_LESSON_COUNT, Math.min(MAX_LESSON_COUNT, lessonCount));
   const lessonsPart = lessons * settings.lesson_duration_minutes;
   const breaksPart = Math.max(0, lessons - 1) * settings.lesson_break_minutes;
   return lessonsPart + breaksPart;
 }
 
-function blockedDurationMinutes(
-  lessonCount: number,
-  settings: TeacherSettings,
-): number {
+function blockedDurationMinutes(lessonCount: number, settings: TeacherSettings): number {
   return totalDurationMinutes(lessonCount, settings) + settings.student_buffer_minutes;
 }
 
-function generateStartTimes(
-  slot: AvailabilityRow,
-  lessonCount: number,
-  settings: TeacherSettings,
-): string[] {
+function generateStartTimes(slot: AvailabilityRow, lessonCount: number, settings: TeacherSettings): string[] {
   const blocked = blockedDurationMinutes(lessonCount, settings);
   const slotStart = timeToMinutes(slot.start_time);
   const slotEnd = timeToMinutes(slot.end_time);

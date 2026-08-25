@@ -1,0 +1,57 @@
+
+> ozel-ders-randevu-web@0.1.0 dev
+> next dev
+
+▲ Next.js 16.2.11 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.21:3000
+- Environments: .env.local
+✓ Ready in 725ms
+
+○ Compiling /panel ...
+ GET /panel 200 in 4.4s (next.js: 3.9s, application-code: 444ms)
+SERVICE_ROLE_EXISTS= true PREFIX= sb_secret_LW7qNqLkjK LENGTH= 41
+SERVICE_CLIENT_FETCH= undiciFn IS_GLOBAL_FETCH= false UNDICI_NAME= fetch
+CREATE_SERVICE_CLIENT_USES_UNDICI= true UNDICI_FN_NAME= fetch
+ GET /api/auth/student-guard 200 in 1333ms (next.js: 1021ms, application-code: 312ms)
+SERVICE_ROLE_EXISTS= true PREFIX= sb_secret_LW7qNqLkjK LENGTH= 41
+SERVICE_CLIENT_FETCH= undiciFn IS_GLOBAL_FETCH= false UNDICI_NAME= fetch
+CREATE_SERVICE_CLIENT_USES_UNDICI= true UNDICI_FN_NAME= fetch
+ GET /api/auth/student-guard 200 in 591ms (next.js: 7ms, application-code: 585ms)
+SERVICE_ROLE_EXISTS= true PREFIX= sb_secret_LW7qNqLkjK LENGTH= 41
+SERVICE_CLIENT_FETCH= undiciFn IS_GLOBAL_FETCH= false UNDICI_NAME= fetch
+CREATE_SERVICE_CLIENT_USES_UNDICI= true UNDICI_FN_NAME= fetch
+ GET /api/auth/student-guard 200 in 196ms (next.js: 4ms, application-code: 193ms)
+SERVICE_ROLE_EXISTS= true PREFIX= sb_secret_LW7qNqLkjK LENGTH= 41
+SERVICE_CLIENT_FETCH= undiciFn IS_GLOBAL_FETCH= false UNDICI_NAME= fetch
+CREATE_SERVICE_CLIENT_USES_UNDICI= true UNDICI_FN_NAME= fetch
+ GET /api/auth/student-guard 200 in 187ms (next.js: 4ms, application-code: 183ms)
+SERVICE_ROLE_EXISTS= true PREFIX= sb_secret_LW7qNqLkjK LENGTH= 41
+SERVICE_CLIENT_FETCH= undiciFn IS_GLOBAL_FETCH= false UNDICI_NAME= fetch
+CREATE_SERVICE_CLIENT_USES_UNDICI= true UNDICI_FN_NAME= fetch
+ GET /api/auth/student-guard 200 in 231ms (next.js: 6ms, application-code: 225ms)
+SERVICE_ROLE_EXISTS= true PREFIX= sb_secret_LW7qNqLkjK LENGTH= 41
+SERVICE_CLIENT_FETCH= undiciFn IS_GLOBAL_FETCH= false UNDICI_NAME= fetch
+CREATE_SERVICE_CLIENT_USES_UNDICI= true UNDICI_FN_NAME= fetch
+ GET /api/auth/student-guard 200 in 159ms (next.js: 3ms, application-code: 156ms)
+SERVICE_ROLE_EXISTS= true PREFIX= sb_secret_LW7qNqLkjK LENGTH= 41
+SERVICE_CLIENT_FETCH= undiciFn IS_GLOBAL_FETCH= false UNDICI_NAME= fetch
+CREATE_SERVICE_CLIENT_USES_UNDICI= true UNDICI_FN_NAME= fetch
+ GET /api/auth/student-guard 200 in 197ms (next.js: 4ms, application-code: 193ms)
+SERVICE_ROLE_EXISTS= true PREFIX= sb_secret_LW7qNqLkjK LENGTH= 41
+SERVICE_CLIENT_FETCH= undiciFn IS_GLOBAL_FETCH= false UNDICI_NAME= fetch
+CREATE_SERVICE_CLIENT_USES_UNDICI= true UNDICI_FN_NAME= fetch
+ GET /api/auth/student-guard 200 in 284ms (next.js: 4ms, application-code: 280ms)
+SERVICE_ROLE_EXISTS= true PREFIX= sb_secret_LW7qNqLkjK LENGTH= 41
+SERVICE_CLIENT_FETCH= undiciFn IS_GLOBAL_FETCH= false UNDICI_NAME= fetch
+CREATE_SERVICE_CLIENT_USES_UNDICI= true UNDICI_FN_NAME= fetch
+ GET /api/auth/student-guard 200 in 470ms (next.js: 13ms, application-code: 457ms)
+SERVICE_ROLE_EXISTS= true PREFIX= sb_secret_LW7qNqLkjK LENGTH= 41
+SERVICE_CLIENT_FETCH= undiciFn IS_GLOBAL_FETCH= false UNDICI_NAME= fetch
+CREATE_SERVICE_CLIENT_USES_UNDICI= true UNDICI_FN_NAME= fetch
+ GET /api/auth/student-guard 200 in 471ms (next.js: 3ms, application-code: 468ms)
+SERVICE_ROLE_EXISTS= true PREFIX= sb_secret_LW7qNqLkjK LENGTH= 41
+SERVICE_CLIENT_FETCH= undiciFn IS_GLOBAL_FETCH= false UNDICI_NAME= fetch
+CREATE_SERVICE_CLIENT_USES_UNDICI= true UNDICI_FN_NAME= fetch
+ GET /api/auth/student-guard 200 in 240ms (next.js: 7ms, application-code: 233ms)
+[?25h

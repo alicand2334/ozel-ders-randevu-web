@@ -30,6 +30,7 @@ export default function RootLayout({
       lang="tr"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <meta charSet="utf-8" />
       <body className="min-h-dvh bg-ink text-ink-text font-sans antialiased premium-radial">
         <AuthProvider>{children}</AuthProvider>
       </body>

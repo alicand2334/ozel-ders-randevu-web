@@ -1,24 +1,44 @@
-﻿"use client";
+"use client";
 
 import { useRouter } from "next/navigation";
-import { Card, PrimaryButton, SecondaryButton } from "@/components/ui";
+import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { Card } from "@/components/ui";
 
-export default function OgretmenPanelPage() {
+export default function OgrenciSecimPage() {
   const router = useRouter();
+  const { user, loading } = useAuth();
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.replace("/giris");
+  };
+
+  if (loading) {
+    return (
+      <main className="flex min-h-dvh items-center justify-center px-6">
+        <p className="text-sm text-muted">Yükleniyor...</p>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <main className="flex min-h-dvh flex-col px-6 py-8 sm:px-10">
       <div className="w-full max-w-4xl mx-auto space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl md:text-4xl font-bold text-foreground">Hoş Geldiniz Hocam</h1>
+            <h1 className="text-3xl md:text-4xl font-bold text-foreground">Hoş Geldiniz</h1>
             <p className="mt-1 text-lg text-muted-foreground">Yapmak istediğiniz işlemi seçin</p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           <Card
-            onClick={() => router.push("/panel/ogretmen/randevular")}
+            onClick={() => router.push("/panel")}
             className="group relative cursor-pointer flex flex-col items-center justify-center p-8 rounded-2xl border border-border bg-card transition-all duration-300 hover:border-yellow-500/50 hover:shadow-[0_0_30px_rgba(234,179,8,0.15)] hover:-translate-y-1"
           >
             <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-xl bg-yellow-500/10 text-yellow-500 transition-all duration-300 group-hover:bg-yellow-500/20 group-hover:scale-110">
@@ -29,12 +49,12 @@ export default function OgretmenPanelPage() {
                 <line x1="3" y1="10" x2="21" y2="10" />
               </svg>
             </div>
-            <h3 className="mb-2 text-2xl font-bold text-foreground">Randevularını Ayarla</h3>
-            <p className="text-base text-muted-foreground text-center">Takvimini ve müsaitliklerini yönet</p>
+            <h3 className="mb-2 text-2xl font-bold text-foreground">Randevu Al</h3>
+            <p className="text-base text-muted-foreground text-center">Öğretmenlerle randevu oluşturun ve randevularınızı yönetin</p>
           </Card>
 
           <Card
-            onClick={() => router.push("/panel/ogretmen/dev-takibi")}
+            onClick={() => router.push("/ogrenci/homework")}
             className="group relative cursor-pointer flex flex-col items-center justify-center p-8 rounded-2xl border border-border bg-card transition-all duration-300 hover:border-yellow-500/50 hover:shadow-[0_0_30px_rgba(234,179,8,0.15)] hover:-translate-y-1"
           >
             <div className="mb-6 flex h-16 w-16 items-center justify-center rounded-xl bg-yellow-500/10 text-yellow-500 transition-all duration-300 group-hover:bg-yellow-500/20 group-hover:scale-110">
@@ -46,8 +66,8 @@ export default function OgretmenPanelPage() {
                 <line x1="10" y1="9" x2="8" y2="9" />
               </svg>
             </div>
-            <h3 className="mb-2 text-2xl font-bold text-foreground">Ödevlendirme Yap</h3>
-            <p className="text-base text-muted-foreground text-center">Öğrencilerine ödev ver ve takip et</p>
+            <h3 className="mb-2 text-2xl font-bold text-foreground">Ödevlerim</h3>
+            <p className="text-base text-muted-foreground text-center">Ödevlerinizi görüntüleyin ve takip edin</p>
           </Card>
         </div>
       </div>

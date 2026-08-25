@@ -9,7 +9,6 @@ import {
   Card,
   PrimaryButton,
   SecondaryButton,
-  SectionTitle,
   TextInput,
 } from "@/components/ui";
 
@@ -55,10 +54,6 @@ export default function GirisPage() {
       return;
     }
 
-    // Server-side aktiflik kontrolü: öğrenci rolündeki kullanıcı pasifse
-    // (/profiles.is_active = false) sisteme girişi engellenir. Admin ve
-    // öğretmenler bu kontrolü atlar; onların kendi panel yönlendirmesi
-    // /panel altında yapılır.
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const accessToken = sessionData.session?.access_token ?? null;
@@ -69,6 +64,11 @@ export default function GirisPage() {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
 
+        if (guardRes.status === 200) {
+          router.push("/ogrenci");
+          return;
+        }
+
         if (guardRes.status === 403) {
           const payload: {
             error?: string;
@@ -77,7 +77,6 @@ export default function GirisPage() {
             role?: string | null;
           } = await guardRes.json();
 
-          // Yalnızca pasif ÖĞRENCİ girişini engelle.
           if (payload.inactive === true) {
             await supabase.auth.signOut();
             setSubmitting(false);
@@ -88,14 +87,13 @@ export default function GirisPage() {
             return;
           }
 
-          // not_student ise (admin/öğretmen) bu uca düşmesi normaldir;
-          // yönlendirmeye /panel altındaki role-dispatch tarafından devam
-          // edilir. Yani engelleme yapılmaz.
+          if (payload.not_student === true) {
+            router.push("/panel");
+            return;
+          }
         }
       }
     } catch {
-      // Guard ağı ulaşılabilir değilse mevcut akışı bozma; /panel kendi
-      // kontrolünü tekrar yapacaktır.
     }
 
     setSubmitting(false);
@@ -103,21 +101,19 @@ export default function GirisPage() {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center px-6 py-16 sm:px-10">
-      <div className="w-full max-w-md">
-        <SectionTitle
-          align="center"
-          eyebrow="Tekrar Hoş Geldiniz"
-          title="Giriş Yap"
-          description="Hesabınıza giriş yaparak randevularınızı yönetin."
-        />
+    <main className="flex min-h-dvh flex-col px-6 py-8 sm:px-10">
+      <div className="w-full max-w-md mx-auto space-y-6">
+        <div className="text-center">
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground">Giriş Yap</h1>
+          <p className="mt-2 text-muted-foreground">Hesabınıza giriş yaparak randevularınızı yönetin.</p>
+        </div>
 
-        <Card className="mt-8" padding="roomy" raised>
+        <Card className="overflow-hidden" padding="snug">
           <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
             {serverError ? (
               <p
                 role="alert"
-                className="rounded-xl border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-300"
+                className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400"
               >
                 {serverError}
               </p>
@@ -157,21 +153,21 @@ export default function GirisPage() {
               </p>
             ) : null}
 
-            <PrimaryButton type="submit" disabled={submitting} className="mt-2">
+            <PrimaryButton type="submit" disabled={submitting} className="mt-2 w-full">
               {submitting ? "Giriş yapılıyor..." : "Giriş Yap"}
             </PrimaryButton>
           </form>
 
-          <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted">
+          <div className="mt-6 flex items-center justify-center gap-2 text-sm text-muted-foreground">
             <Badge tone="neutral">Yeni hesap mı gerekli?</Badge>
-            <span className="text-muted">
+            <span className="text-muted-foreground">
               Hesaplar yalnızca yönetici tarafından oluşturulur.
             </span>
           </div>
         </Card>
 
-        <div className="mt-6 text-center">
-          <SecondaryButton onClick={() => router.push("/")} className="w-full">
+        <div className="text-center">
+          <SecondaryButton onClick={() => router.push("/")} className="w-full sm:w-auto">
             Ana Sayfaya Dön
           </SecondaryButton>
         </div>
