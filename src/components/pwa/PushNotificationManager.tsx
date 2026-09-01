@@ -45,10 +45,33 @@ export function usePushNotifications() {
       return;
     }
 
-    try {
-      const registration = await navigator.serviceWorker.ready;
-      setSwRegistration(registration);
+    // Try to get SW registration with retries for iOS PWA
+    let registration: ServiceWorkerRegistration | null = null;
+    const maxRetries = 3;
+    const retryDelay = 500; // ms
 
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        registration = await navigator.serviceWorker.ready;
+        if (registration) break;
+      } catch (err) {
+        console.warn(`[Push] SW ready attempt ${attempt}/${maxRetries} failed:`, err);
+        if (attempt < maxRetries) {
+          await new Promise(resolve => setTimeout(resolve, retryDelay * attempt));
+        }
+      }
+    }
+
+    if (!registration) {
+      console.error("[Push] Service Worker not ready after retries");
+      setStatus("default");
+      setError("Service Worker hazır değil. Sayfayı yenileyin.");
+      return;
+    }
+
+    setSwRegistration(registration);
+
+    try {
       const subscription = await registration.pushManager.getSubscription();
       
       if (subscription) {
@@ -70,8 +93,21 @@ export function usePushNotifications() {
       return false;
     }
 
-    if (!swRegistration) {
-      setError("Service Worker hazır değil.");
+    // Ensure SW registration is available, wait if needed
+    let registration = swRegistration;
+    if (!registration) {
+      try {
+        registration = await navigator.serviceWorker.ready;
+        setSwRegistration(registration);
+      } catch (err) {
+        console.error("[Push] Failed to get SW registration:", err);
+        setError("Service Worker hazır değil. Sayfayı yenileyin.");
+        return false;
+      }
+    }
+
+    if (!registration) {
+      setError("Service Worker hazır değil. Sayfayı yenileyin.");
       return false;
     }
 
@@ -103,7 +139,7 @@ export function usePushNotifications() {
 
       const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
 
-      const subscription = await swRegistration.pushManager.subscribe({
+      const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey,
       });
@@ -142,16 +178,33 @@ export function usePushNotifications() {
       setLoading(false);
       return false;
     }
-  }, [session, swRegistration]);
+  }, [session]);
 
   const unsubscribe = useCallback(async (): Promise<boolean> => {
-    if (!session?.user || !swRegistration) return false;
+    if (!session?.user) return false;
+
+    let registration = swRegistration;
+    if (!registration) {
+      try {
+        registration = await navigator.serviceWorker.ready;
+        setSwRegistration(registration);
+      } catch (err) {
+        console.error("[Push] Failed to get SW registration for unsubscribe:", err);
+        setError("Service Worker hazır değil.");
+        return false;
+      }
+    }
+
+    if (!registration) {
+      setError("Service Worker hazır değil.");
+      return false;
+    }
 
     setLoading(true);
     setError(null);
 
     try {
-      const subscription = await swRegistration.pushManager.getSubscription();
+      const subscription = await registration.pushManager.getSubscription();
       
       if (subscription) {
         await subscription.unsubscribe();
@@ -179,7 +232,7 @@ export function usePushNotifications() {
       setLoading(false);
       return false;
     }
-  }, [session, swRegistration]);
+  }, [session]);
 
   const toggleSubscription = useCallback(async () => {
     if (isSubscribed) {
