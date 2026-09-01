@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 export type BadgeProps = {
   children: ReactNode;
   /** Vurgu tonu */
-  tone?: "gold" | "neutral";
+  tone?: "gold" | "neutral" | "red";
   className?: string;
 };
 
@@ -15,6 +15,8 @@ export function Badge({
   const toneClasses =
     tone === "gold"
       ? "border-gold/30 bg-gold-soft text-gold"
+      : tone === "red"
+      ? "border-red-500/30 bg-red-500/10 text-red-400"
       : "border-line bg-surface text-muted";
   return (
     <span

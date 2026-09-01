@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Card, PrimaryButton, SecondaryButton } from "@/components/ui";
+import { NotificationToggleButton } from "@/components/pwa/NotificationToggleButton";
 
 export default function OgretmenPanelPage() {
   const router = useRouter();
@@ -10,9 +11,9 @@ export default function OgretmenPanelPage() {
     <main className="flex min-h-[100dvh] flex-col px-6 sm:px-10">
       <div className="flex flex-col justify-center flex-1 w-full max-w-4xl mx-auto py-12 sm:py-16 space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+          <div className="flex items-center gap-2">
             <h1 className="text-3xl md:text-4xl font-bold text-foreground">Hoş Geldiniz Hocam</h1>
-            <p className="mt-1 text-lg text-muted-foreground">Yapmak istediğiniz işlemi seçin</p>
+            <NotificationToggleButton showLabel={false} compact />
           </div>
         </div>
 

@@ -38,6 +38,7 @@ import {
   SectionTitle,
   TextInput,
 } from "@/components/ui";
+import { NotificationToggleButton } from "@/components/pwa/NotificationToggleButton";
 
 type StudentProfileRow = {
   id: string;
@@ -1159,6 +1160,39 @@ export default function OgretmenPanelPage() {
       return;
     }
 
+    // Send push notification to student (fire and forget)
+    let notificationType: "booking_confirmed" | "booking_rejected" | "booking_cancelled_by_teacher" | "booking_completed" | null = null;
+    if (nextStatus === "confirmed" && appt.status === "pending") {
+      notificationType = "booking_confirmed";
+    } else if (nextStatus === "cancelled" && appt.status === "pending") {
+      notificationType = "booking_rejected";
+    } else if (nextStatus === "cancelled" && appt.status === "confirmed") {
+      notificationType = "booking_cancelled_by_teacher";
+    } else if (nextStatus === "completed" && appt.status === "confirmed") {
+      notificationType = "booking_completed";
+    }
+
+    if (notificationType) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const accessToken = sessionData.session?.access_token;
+      
+      if (accessToken) {
+        fetch("/api/push/appointment", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            appointmentId: appt.id,
+            type: notificationType,
+          }),
+        }).catch((err) => {
+          console.error("[Push] Failed to send appointment notification:", err);
+        });
+      }
+    }
+
     await fetchAppointments(user.id);
     await fetchSlots(user.id);
   }
@@ -1351,53 +1385,55 @@ export default function OgretmenPanelPage() {
   }
 
   return (
-    <main className="flex min-h-dvh flex-col px-6 py-8 sm:px-10">
-      <div className="w-full max-w-4xl mx-auto space-y-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <main className="flex min-h-dvh flex-col px-4 sm:px-6 py-6 sm:py-8 portrait-padding">
+      <div className="w-full max-w-4xl mx-auto space-y-4 sm:space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between portrait-flex-wrap portrait-gap-3">
           <SectionTitle
             align="left"
             eyebrow="Öğretmen Paneli"
             title="Müsaitlik Takvimi"
             description="Uygun ders saatlerinizi ekleyin ve mevcut kayıtlarınızı görüntüleyin."
           />
-          <div
-            ref={notificationsDropdownRef}
-            className="relative w-full sm:w-auto"
-          >
-            <button
-              type="button"
-              aria-label="Bildirimler"
-              aria-expanded={isNotificationsOpen}
-              aria-haspopup="true"
-              onClick={() => setIsNotificationsOpen((p) => !p)}
-              className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center self-start rounded-xl border border-border bg-surface text-foreground transition-colors duration-200 hover:border-yellow-500/50 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background focus:ring-yellow-500/60"
+          <div className="flex items-center gap-2 sm:gap-3">
+            <NotificationToggleButton showLabel={false} compact />
+            <div
+              ref={notificationsDropdownRef}
+              className="relative w-full sm:w-auto self-start"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="h-5 w-5"
-                aria-hidden="true"
+              <button
+                type="button"
+                aria-label="Bildirimler"
+                aria-expanded={isNotificationsOpen}
+                aria-haspopup="true"
+                onClick={() => setIsNotificationsOpen((p) => !p)}
+                className="relative inline-flex h-11 w-11 shrink-0 items-center justify-center self-start rounded-xl border border-border bg-surface text-foreground transition-colors duration-200 hover:border-yellow-500/50 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-background focus:ring-yellow-500/60"
               >
-                <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-              </svg>
-              {unreadCount > 0 ? (
-                <span className="absolute -right-1.5 -top-1.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full border border-red-500/40 bg-red-500 px-1 text-[0.625rem] font-semibold leading-none text-white shadow-sm">
-                  {unreadCount > 99 ? "99+" : unreadCount}
-                </span>
-              ) : null}
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="h-5 w-5"
+                  aria-hidden="true"
+                >
+                  <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                  <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                </svg>
+                {unreadCount > 0 ? (
+                  <span className="absolute -right-1.5 -top-1.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full border border-red-500/40 bg-red-500 px-1 text-[0.625rem] font-semibold leading-none text-white shadow-sm">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                ) : null}
+              </button>
 
             {isNotificationsOpen ? (
               <div
                 role="dialog"
                 aria-label="Bildirimler"
-                className="fixed left-4 right-4 top-20 z-50 sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-[360px] sm:max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl shadow-black/40 backdrop-blur-sm"
+                className="fixed left-4 right-4 top-20 z-50 sm:absolute sm:left-auto sm:right-0 sm:top-12 sm:w-[360px] sm:max-w-[calc(100vw-3rem)] overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl shadow-black/40 backdrop-blur-sm dropdown-mobile dropdown-portrait"
               >
                 <div className="flex items-center justify-between gap-3 border-b border-border bg-surface/60 px-4 py-3">
                   <h2 className="text-sm font-semibold tracking-tight text-foreground">
@@ -1468,6 +1504,7 @@ export default function OgretmenPanelPage() {
               </div>
             ) : null}
           </div>
+        </div>
         </div>
 
         <Card className="overflow-hidden" padding="snug">

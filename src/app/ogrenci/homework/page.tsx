@@ -11,6 +11,7 @@ import {
   SecondaryButton,
   Badge,
 } from '@/components/ui';
+import { NotificationToggleButton } from '@/components/pwa/NotificationToggleButton';
 
 type HomeworkRow = {
   id: string;
@@ -165,8 +166,9 @@ export default function OgrenciHomeworkPage() {
     <main className='flex min-h-dvh flex-col px-6 py-8 sm:px-10'>
       <div className='w-full max-w-4xl mx-auto space-y-6'>
         <div className='flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between'>
-          <div>
+          <div className='flex items-center gap-2'>
             <h1 className='text-3xl md:text-4xl font-bold text-foreground'>Ödev Takibi</h1>
+            <NotificationToggleButton showLabel={false} compact />
           </div>
           <div className='flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end gap-3'>
             <SecondaryButton onClick={handleGoBack} className='w-full sm:w-auto'>

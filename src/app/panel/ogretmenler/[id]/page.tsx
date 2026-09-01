@@ -376,22 +376,46 @@ export default function TeacherProfilePage() {
     setBookingError(null);
     setBookingSuccess(null);
 
-    const { error } = await supabase.from("appointments").insert({
-      slot_id: selectedSlot.id,
-      student_id: user.id,
-      lesson,
-      subject,
-      lesson_count: lessonCount,
-      requested_start_time: requestedStartTime,
-      lesson_mode: lessonMode,
-      notes: null,
-    });
+    const { data: insertedAppointment, error } = await supabase
+      .from("appointments")
+      .insert({
+        slot_id: selectedSlot.id,
+        student_id: user.id,
+        lesson,
+        subject,
+        lesson_count: lessonCount,
+        requested_start_time: requestedStartTime,
+        lesson_mode: lessonMode,
+        notes: null,
+      })
+      .select("id")
+      .single();
 
     setBookingSubmitting(false);
 
-    if (error) {
-      setBookingError(error.message ?? "Randevu oluşturulamadı. Lütfen tekrar deneyin.");
+    if (error || !insertedAppointment) {
+      setBookingError(error?.message ?? "Randevu oluşturulamadı. Lütfen tekrar deneyin.");
       return;
+    }
+
+    // Send push notification to teacher (fire and forget)
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    
+    if (accessToken) {
+      fetch("/api/push/appointment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          appointmentId: insertedAppointment.id,
+          type: "booking_created",
+        }),
+      }).catch((err) => {
+        console.error("[Push] Failed to send appointment notification:", err);
+      });
     }
 
     setBookedSlotId(selectedSlot.id);

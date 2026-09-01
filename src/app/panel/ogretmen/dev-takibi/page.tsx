@@ -11,8 +11,10 @@ import {
   SecondaryButton,
   Badge,
 } from "@/components/ui";
+import { HomeworkListItem } from "@/components/ogretmen/HomeworkListItem";
+import { NotificationToggleButton } from "@/components/pwa/NotificationToggleButton";
 
-type HomeworkRow = {
+export type HomeworkRow = {
   id: string;
   title: string;
   description: string | null;
@@ -398,7 +400,9 @@ export default function OgretmenHomeworkPage() {
     setSubmitError(null);
     const teacherId = user!.id;
 
-    try {
+try {
+      let homeworkId: string | null = null;
+
       if (editingHomework) {
         const { error: err } = await supabase
           .from("homework")
@@ -413,6 +417,7 @@ export default function OgretmenHomeworkPage() {
           .eq("teacher_id", teacherId);
 
         if (err) throw err;
+        homeworkId = editingHomework.id;
       } else {
         const inserts = selectedStudentIds.map((studentId) => ({
           teacher_id: teacherId,
@@ -424,12 +429,40 @@ export default function OgretmenHomeworkPage() {
           status: "assigned",
         }));
 
-        const { error: err } = await supabase
+        const { data: insertedData, error: err } = await supabase
           .from("homework")
           .insert(inserts)
-          .select();
+          .select("id");
 
         if (err) throw err;
+        homeworkId = insertedData?.[0]?.id ?? null;
+      }
+
+      // Send push notifications to students (fire and forget, don't block UI)
+      if (homeworkId && selectedStudentIds.length > 0) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        
+        if (accessToken) {
+          fetch("/api/push/homework", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({
+              studentIds: selectedStudentIds,
+              title: description.trim().length > 0 ? description.trim().substring(0, 50) : "Ödev",
+              description: description.trim(),
+              dueDate: formattedDueDate,
+              dueTime: formattedDueTime,
+              homeworkId,
+              type: editingHomework ? "updated" : "assigned",
+            }),
+          }).catch((err) => {
+            console.error("[Push] Failed to send homework notification:", err);
+          });
+        }
       }
 
       setSubmitSuccess(true);
@@ -489,16 +522,30 @@ export default function OgretmenHomeworkPage() {
     return null;
   }
 
+  const homeworkItems = homeworks.map((hw) => {
+    const studentRaw = hw.student as { full_name: string | null }[] | { full_name: string | null } | null;
+    const studentName = (() => {
+      if (Array.isArray(studentRaw)) return studentRaw[0]?.full_name ?? "Öğrenci bilgisi yok";
+      if (studentRaw) return studentRaw.full_name ?? "Öğrenci bilgisi yok";
+      return "Öğrenci bilgisi yok";
+    })();
+    const formattedDue = formatHomeworkDue(hw.due_date, hw.due_time);
+    return { hw, studentName, formattedDue };
+  });
+
   return (
-    <main className="flex min-h-dvh flex-col px-6 py-8 sm:px-10">
+    <main className="flex min-h-dvh flex-col px-4 sm:px-6 py-6 sm:py-8">
       <div className="w-full max-w-4xl mx-auto space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <SecondaryButton onClick={() => router.push("/panel/ogretmen")} className="w-full sm:w-auto">
+          <SecondaryButton onClick={() => router.push("/panel/ogretmen")} className="w-full sm:w-auto justify-center">
             Ana Menüye Dön
           </SecondaryButton>
-          <div className="flex-1 text-center">
-            <h1 className="text-3xl md:text-4xl font-bold text-foreground">Ödevlendirme</h1>
-            <p className="mt-2 text-muted-foreground">
+          <div className="w-full sm:flex-1 text-center sm:text-left">
+            <div className="flex items-center justify-center sm:justify-start gap-2">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground">Ödevlendirme</h1>
+              <NotificationToggleButton showLabel={false} compact />
+            </div>
+            <p className="mt-2 text-sm sm:text-base text-muted-foreground">
               Öğrencilerine ödev ver, takip et ve tamamlanma durumlarını görüntüle.
             </p>
           </div>
@@ -522,69 +569,17 @@ export default function OgretmenHomeworkPage() {
             <p className="text-sm leading-relaxed text-muted-foreground text-center py-8">
               Henüz ödev vermediniz.
             </p>
-          ) : (
+) : (
             <ul className="divide-y divide-border">
-              {homeworks.map((hw) => {
-                const studentRaw = hw.student as { full_name: string | null }[] | { full_name: string | null } | null;
-                let studentName: string | null = null;
-                if (Array.isArray(studentRaw)) {
-                  studentName = studentRaw[0]?.full_name ?? null;
-                } else if (studentRaw) {
-                  studentName = studentRaw.full_name;
-                }
-                if (studentName === null) studentName = "Öğrenci bilgisi yok";
-                const formattedDue = formatHomeworkDue(hw.due_date, hw.due_time);
-                return (
-                  <li key={hw.id} className="py-5">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge tone="gold" className="text-xs">Ödev</Badge>
-                          <span
-                            className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium border ${
-                              hw.status === "completed"
-                                ? "bg-green-500/20 text-green-400 border-green-500/30"
-                                : hw.status === "overdue"
-                                ? "bg-red-500/20 text-red-400 border-red-500/30"
-                                : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30"
-                            }`}
-                          >
-                            {hw.status === "assigned" ? "Bekliyor" : hw.status === "completed" ? "Tamamlandı" : "Süresi Geçti"}
-                          </span>
-                        </div>
-                        <h3 className="text-xl font-bold text-foreground">{hw.description || hw.title}</h3>
-                        {hw.title && hw.description && hw.title.trim() !== hw.description.trim() && (
-                          <p className="mt-2 text-sm text-muted-foreground">{hw.title}</p>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenModal(hw)}
-                          className="rounded-full border border-yellow-500/50 px-3 py-1.5 text-xs font-semibold text-yellow-500 transition hover:bg-yellow-500/10"
-                        >
-                          Düzenle
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-3 sm:gap-6">
-                      <div>
-                        <p className="text-xs text-muted-foreground">Öğrenci</p>
-                        <p className="mt-1 text-base font-semibold text-foreground">{studentName}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Son Tarih</p>
-                        <p className="mt-1 text-base font-semibold text-foreground">{formattedDue}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-muted-foreground">Oluşturulma</p>
-                        <p className="mt-1 text-base font-semibold text-foreground">{new Date(hw.created_at).toLocaleDateString("tr-TR")}</p>
-                      </div>
-                    </div>
-                  </li>
-                );
-              })}
+              {homeworkItems.map(({ hw, studentName, formattedDue }) => (
+                <HomeworkListItem
+                  key={hw.id}
+                  hw={hw}
+                  studentName={studentName}
+                  formattedDue={formattedDue}
+                  onEdit={handleOpenModal}
+                />
+              ))}
             </ul>
           )}
         </Card>

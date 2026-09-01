@@ -444,6 +444,26 @@ export default function PanelPage() {
       return;
     }
 
+    // Send push notification to teacher (fire and forget)
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    
+    if (accessToken) {
+      fetch("/api/push/appointment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          appointmentId: appt.id,
+          type: "booking_cancelled_by_student",
+        }),
+      }).catch((err) => {
+        console.error("[Push] Failed to send appointment cancellation notification:", err);
+      });
+    }
+
     await fetchMyAppointments(user.id);
   }
 
