@@ -121,16 +121,7 @@ export function usePushNotifications() {
     setError(null);
 
     try {
-      const permission = await Notification.requestPermission();
-      
-      if (permission !== "granted") {
-        setError("Bildirim izni verilmedi.");
-        setStatus(permission);
-        setLoading(false);
-        return false;
-      }
-
-      setStatus("pending");
+      console.log("[Push] Creating push subscription...");
 
       const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
       if (!vapidPublicKey) {
@@ -143,6 +134,8 @@ export function usePushNotifications() {
         userVisibleOnly: true,
         applicationServerKey,
       });
+
+      console.log("[Push] Push subscription created:", subscription.endpoint);
 
       const subscriptionData: PushSubscriptionData = {
         endpoint: subscription.endpoint,
@@ -162,6 +155,8 @@ export function usePushNotifications() {
         body: JSON.stringify(subscriptionData),
       });
 
+      console.log("[Push] Backend subscription save response:", response.status, response.statusText);
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Abonelik kaydedilemedi");
@@ -173,6 +168,7 @@ export function usePushNotifications() {
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Abonelik sırasında hata oluştu";
+      console.error("[Push] Subscription error:", err);
       setError(message);
       setStatus("default");
       setLoading(false);

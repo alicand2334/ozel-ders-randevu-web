@@ -17,7 +17,8 @@ export function NotificationToggleButton({
     isSubscribed, 
     loading, 
     error, 
-    toggleSubscription, 
+    requestPermissionAndSubscribe,
+    unsubscribe,
     isSupported 
   } = usePushNotifications();
 
@@ -27,7 +28,34 @@ export function NotificationToggleButton({
 
   const handleClick = async () => {
     if (loading) return;
-    await toggleSubscription();
+
+    console.log("[NotificationToggle] Button clicked, current status:", status);
+    console.log("[NotificationToggle] Current permission:", Notification.permission);
+
+    // Request permission IMMEDIATELY - must be in user gesture for iOS
+    let permission: NotificationPermission;
+    try {
+      console.log("[NotificationToggle] Requesting notification permission...");
+      permission = await Notification.requestPermission();
+      console.log("[NotificationToggle] Permission result:", permission);
+    } catch (err) {
+      console.error("[NotificationToggle] Permission request failed:", err);
+      return;
+    }
+
+    if (permission !== "granted") {
+      console.log("[NotificationToggle] Permission not granted:", permission);
+      return;
+    }
+
+    // Permission granted, now call the async subscription flow
+    if (!isSubscribed) {
+      console.log("[NotificationToggle] Permission granted, subscribing...");
+      await requestPermissionAndSubscribe();
+    } else {
+      console.log("[NotificationToggle] Already subscribed, unsubscribing...");
+      await unsubscribe();
+    }
   };
 
   const isPending = status === "pending";
